@@ -1,53 +1,23 @@
 const MODELS = {
-  "sonar-small-chat": {
-    id: "sonar-small-chat",
-    name: "sonar-small-chat",
-    maxLength: 16384,
+  "sonar-reasoning-pro": {
+    id: "sonar-reasoning-pro",
+    name: "sonar-reasoning-pro",
+    maxLength: 127072,
   },
-  "sonar-small-online": {
-    id: "sonar-small-online",
-    name: "sonar-small-online",
-    maxLength: 12000,
+  "sonar-reasoning": {
+    id: "sonar-reasoning",
+    name: "sonar-reasoning",
+    maxLength: 127072,
   },
-  "sonar-medium-chat": {
-    id: "sonar-medium-chat",
-    name: "sonar-medium-chat",
-    maxLength: 16384,
+  "sonar-pro": {
+    id: "sonar-pro",
+    name: "sonar-pro",
+    maxLength: 200000,
   },
-  "sonar-medium-online": {
-    id: "sonar-medium-online",
-    name: "sonar-medium-online",
-    maxLength: 12000,
-  },
-  "llama-3-8b-instruct": {
-    id: "llama-3-8b-instruct",
-    name: "llama-3-8b-instruct",
-    maxLength: 8192,
-  },
-  "llama-3-70b-instruct": {
-    id: "llama-3-70b-instruct",
-    name: "llama-3-70b-instruct",
-    maxLength: 8192,
-  },
-  "codellama-70b-instruct": {
-    id: "codellama-70b-instruct",
-    name: "codellama-70b-instruct",
-    maxLength: 16384,
-  },
-  "mistral-7b-instruct": {
-    id: "mistral-7b-instruct",
-    name: "mistral-7b-instruct",
-    maxLength: 16384,
-  },
-  "mixtral-8x7b-instruct": {
-    id: "mixtral-8x7b-instruct",
-    name: "mixtral-8x7b-instruct",
-    maxLength: 16384,
-  },
-  "mixtral-8x22b-instruct": {
-    id: "mixtral-8x22b-instruct",
-    name: "mixtral-8x22b-instruct",
-    maxLength: 16384,
+  sonar: {
+    id: "sonar",
+    name: "sonar",
+    maxLength: 127072,
   },
 };
 

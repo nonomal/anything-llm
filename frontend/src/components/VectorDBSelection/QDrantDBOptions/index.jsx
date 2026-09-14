@@ -9,7 +9,7 @@ export default function QDrantDBOptions({ settings }) {
           <input
             type="url"
             name="QdrantEndpoint"
-            className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+            className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="http://localhost:6633"
             defaultValue={settings?.QdrantEndpoint}
             required={true}
@@ -25,9 +25,9 @@ export default function QDrantDBOptions({ settings }) {
           <input
             type="password"
             name="QdrantApiKey"
-            className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+            className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="wOeqxsYP4....1244sba"
-            defaultValue={settings?.QdrantApiKey}
+            defaultValue={settings?.QdrantApiKey ? "*".repeat(20) : ""}
             autoComplete="off"
             spellCheck={false}
           />

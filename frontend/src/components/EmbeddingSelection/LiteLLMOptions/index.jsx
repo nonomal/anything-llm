@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import System from "@/models/system";
-import { Warning } from "@phosphor-icons/react";
+import { Warning, Info } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
 
 export default function LiteLLMOptions({ settings }) {
@@ -19,7 +19,7 @@ export default function LiteLLMOptions({ settings }) {
           <input
             type="url"
             name="LiteLLMBasePath"
-            className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+            className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="http://127.0.0.1:4000"
             defaultValue={settings?.LiteLLMBasePath}
             required={true}
@@ -35,13 +35,26 @@ export default function LiteLLMOptions({ settings }) {
           apiKey={apiKey}
         />
         <div className="flex flex-col w-60">
-          <label className="text-white text-sm font-semibold block mb-3">
-            Max embedding chunk length
-          </label>
+          <div
+            data-tooltip-place="top"
+            data-tooltip-id="max-embedding-chunk-length-tooltip"
+            className="flex gap-x-1 items-center mb-3"
+          >
+            <Info
+              size={16}
+              className="text-theme-text-secondary cursor-pointer"
+            />
+            <label className="text-white text-sm font-semibold block">
+              Max embedding chunk length
+            </label>
+            <Tooltip id="max-embedding-chunk-length-tooltip">
+              Maximum length of text chunks, in characters, for embedding.
+            </Tooltip>
+          </div>
           <input
             type="number"
             name="EmbeddingModelMaxChunkLength"
-            className="bg-zinc-900 text-white placeholder-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+            className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="8192"
             min={1}
             onScroll={(e) => e.target.blur()}
@@ -61,7 +74,7 @@ export default function LiteLLMOptions({ settings }) {
           <input
             type="password"
             name="LiteLLMAPIKey"
-            className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+            className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
             placeholder="sk-mysecretkey"
             defaultValue={settings?.LiteLLMAPIKey ? "*".repeat(20) : ""}
             autoComplete="off"
@@ -107,7 +120,7 @@ function LiteLLMModelSelection({ settings, basePath = null, apiKey = null }) {
         <select
           name="EmbeddingModelPref"
           disabled={true}
-          className="bg-zinc-900 border-gray-500 text-white text-sm rounded-lg block w-full p-2.5"
+          className="border-none bg-theme-settings-input-bg border-gray-500 text-white text-sm rounded-lg block w-full p-2.5"
         >
           <option disabled={true} selected={true}>
             {basePath?.includes("/v1")
@@ -130,7 +143,7 @@ function LiteLLMModelSelection({ settings, basePath = null, apiKey = null }) {
       <select
         name="EmbeddingModelPref"
         required={true}
-        className="bg-zinc-900 border-gray-500 text-white text-sm rounded-lg block w-full p-2.5"
+        className="border-none bg-theme-settings-input-bg border-gray-500 text-white text-sm rounded-lg block w-full p-2.5"
       >
         {customModels.length > 0 && (
           <optgroup label="Your loaded models">

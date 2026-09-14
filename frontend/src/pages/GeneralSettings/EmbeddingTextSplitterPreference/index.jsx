@@ -5,8 +5,11 @@ import PreLoader from "@/components/Preloader";
 import CTAButton from "@/components/lib/CTAButton";
 import Admin from "@/models/admin";
 import showToast from "@/utils/toast";
-import { nFormatter, numberWithCommas } from "@/utils/numbers";
+import { numberWithCommas } from "@/utils/numbers";
 import { useTranslation } from "react-i18next";
+import { useModal } from "@/hooks/useModal";
+import Modal from "@/components/lib/Modal";
+import ChangeWarningModal from "@/components/ChangeWarning";
 
 function isNullOrNaN(value) {
   if (value === null) return true;
@@ -18,6 +21,7 @@ export default function EmbeddingTextSplitterPreference() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const { isOpen, openModal, closeModal } = useModal();
   const { t } = useTranslation();
 
   const handleSubmit = async (e) => {
@@ -35,27 +39,46 @@ export default function EmbeddingTextSplitterPreference() {
       return;
     }
 
+    openModal();
+  };
+
+  const handleSaveSettings = async () => {
     setSaving(true);
-    await Admin.updateSystemPreferences({
-      text_splitter_chunk_size: isNullOrNaN(
-        form.get("text_splitter_chunk_size")
-      )
-        ? 1000
-        : Number(form.get("text_splitter_chunk_size")),
-      text_splitter_chunk_overlap: isNullOrNaN(
-        form.get("text_splitter_chunk_overlap")
-      )
-        ? 1000
-        : Number(form.get("text_splitter_chunk_overlap")),
-    });
-    setSaving(false);
-    setHasChanges(false);
-    showToast("Text chunking strategy settings saved.", "success");
+    try {
+      const form = new FormData(
+        document.getElementById("text-splitter-chunking-form")
+      );
+      await Admin.updateSystemPreferences({
+        text_splitter_chunk_size: isNullOrNaN(
+          form.get("text_splitter_chunk_size")
+        )
+          ? 1000
+          : Number(form.get("text_splitter_chunk_size")),
+        text_splitter_chunk_overlap: isNullOrNaN(
+          form.get("text_splitter_chunk_overlap")
+        )
+          ? 1000
+          : Number(form.get("text_splitter_chunk_overlap")),
+      });
+      setHasChanges(false);
+      closeModal();
+      showToast("Text chunking strategy settings saved.", "success");
+    } catch {
+      showToast("Failed to save text chunking strategy settings.", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
     async function fetchSettings() {
-      const _settings = (await Admin.systemPreferences())?.settings;
+      const _settings = (
+        await Admin.systemPreferencesByFields([
+          "text_splitter_chunk_size",
+          "text_splitter_chunk_overlap",
+          "max_embed_chunk_size",
+        ])
+      )?.settings;
       setSettings(_settings ?? {});
       setLoading(false);
     }
@@ -63,12 +86,12 @@ export default function EmbeddingTextSplitterPreference() {
   }, []);
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-sidebar flex">
+    <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
       <Sidebar />
       {loading ? (
         <div
           style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-          className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-main-gradient w-full h-full overflow-y-scroll"
+          className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full overflow-y-scroll p-4 md:p-0"
         >
           <div className="w-full h-full flex justify-center items-center">
             <PreLoader />
@@ -77,15 +100,16 @@ export default function EmbeddingTextSplitterPreference() {
       ) : (
         <div
           style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-          className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-main-gradient w-full h-full overflow-y-scroll"
+          className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-theme-bg-secondary w-full h-full overflow-y-scroll p-4 md:p-0"
         >
           <form
             onSubmit={handleSubmit}
             onChange={() => setHasChanges(true)}
             className="flex w-full"
+            id="text-splitter-chunking-form"
           >
             <div className="flex flex-col w-full px-1 md:pl-6 md:pr-[50px] md:py-6 py-16">
-              <div className="w-full flex flex-col gap-y-1 pb-4 border-white border-b-2 border-opacity-10">
+              <div className="w-full flex flex-col gap-y-1 pb-4 border-white light:border-theme-sidebar-border border-b-2 border-opacity-10">
                 <div className="flex gap-x-4 items-center">
                   <p className="text-lg leading-6 font-bold text-white">
                     {t("text.title")}
@@ -94,10 +118,6 @@ export default function EmbeddingTextSplitterPreference() {
                 <p className="text-xs leading-[18px] font-base text-white text-opacity-60">
                   {t("text.desc-start")} <br />
                   {t("text.desc-end")}
-                </p>
-                <p className="text-xs leading-[18px] font-semibold text-white/80">
-                  {t("text.warn-start")} <i>{t("text.warn-center")}</i>
-                  {t("text.warn-end")}
                 </p>
               </div>
               <div className="w-full justify-end flex">
@@ -124,7 +144,7 @@ export default function EmbeddingTextSplitterPreference() {
                     min={1}
                     max={settings?.max_embed_chunk_size || 1000}
                     onWheel={(e) => e?.currentTarget?.blur()}
-                    className="border-none bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                    className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
                     placeholder="maximum length of vectorized text"
                     defaultValue={
                       isNullOrNaN(settings?.text_splitter_chunk_size)
@@ -156,7 +176,7 @@ export default function EmbeddingTextSplitterPreference() {
                     name="text_splitter_chunk_overlap"
                     min={0}
                     onWheel={(e) => e?.currentTarget?.blur()}
-                    className="border-none bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                    className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
                     placeholder="maximum length of vectorized text"
                     defaultValue={
                       isNullOrNaN(settings?.text_splitter_chunk_overlap)
@@ -172,6 +192,14 @@ export default function EmbeddingTextSplitterPreference() {
           </form>
         </div>
       )}
+
+      <Modal isOpen={isOpen} onClose={closeModal} size="lg">
+        <ChangeWarningModal
+          warningText="Changing text splitter settings will clear any previously cached documents.\n\nThese new settings will be applied to all documents when embedding them into a workspace."
+          onClose={closeModal}
+          onConfirm={handleSaveSettings}
+        />
+      </Modal>
     </div>
   );
 }

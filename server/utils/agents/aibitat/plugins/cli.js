@@ -1,7 +1,6 @@
 // Plugin CAN ONLY BE USE IN DEVELOPMENT.
 const { input } = require("@inquirer/prompts");
 const chalk = require("chalk");
-const { RetryError } = require("../error");
 
 /**
  * Command-line Interface plugin. It prints the messages on the console and asks for feedback
@@ -19,14 +18,9 @@ const cli = {
         let printing = [];
 
         aibitat.onError(async (error) => {
-          console.error(chalk.red(`   error: ${error?.message}`));
-          if (error instanceof RetryError) {
-            console.error(chalk.red(`   retrying in 60 seconds...`));
-            setTimeout(() => {
-              aibitat.retry();
-            }, 60000);
-            return;
-          }
+          let errorMessage =
+            error?.message || "An error occurred while running the agent.";
+          console.error(chalk.red(`   error: ${errorMessage}`), error);
         });
 
         aibitat.onStart(() => {

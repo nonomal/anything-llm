@@ -165,6 +165,9 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request"
+          },
           "401": {
             "description": "Instance is not in Multi-User mode. Method denied"
           },
@@ -190,7 +193,6 @@
         "requestBody": {
           "description": "Key pair object that will define the new user to add to the system.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -260,7 +262,6 @@
         "requestBody": {
           "description": "Key pair object that will update the found user. All fields are optional and will not update unless specified.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -431,7 +432,6 @@
         "requestBody": {
           "description": "Request body for creation parameters of the invitation",
           "required": false,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -478,6 +478,9 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request"
+          },
           "401": {
             "description": "Instance is not in Multi-User mode. Method denied"
           },
@@ -495,6 +498,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found"
           },
           "500": {
             "description": "Internal Server Error"
@@ -623,7 +629,6 @@
         "requestBody": {
           "description": "Entire array of user ids who can access the workspace. All fields are optional and will not update unless specified.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -633,6 +638,95 @@
                   4,
                   12
                 ]
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v1/admin/workspaces/{workspaceSlug}/manage-users": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "description": "Set workspace permissions to be accessible by the given user ids and admins. Methods are disabled until multi user mode is enabled via the UI.",
+        "parameters": [
+          {
+            "name": "workspaceSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "slug of the workspace in the database"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "success": true,
+                    "error": null,
+                    "users": [
+                      {
+                        "userId": 1,
+                        "username": "main-admin",
+                        "role": "admin"
+                      },
+                      {
+                        "userId": 2,
+                        "username": "sample-sam",
+                        "role": "default"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Instance is not in Multi-User mode. Method denied"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "description": "Array of user ids who will be given access to the target workspace. <code>reset</code> will remove all existing users from the workspace and only add the new users - default <code>false</code>.",
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "userIds": [
+                  1,
+                  2,
+                  4,
+                  12
+                ],
+                "reset": false
               }
             }
           }
@@ -683,7 +777,6 @@
         "requestBody": {
           "description": "Page offset to show of workspace chats. All fields are optional and will not update unless specified.",
           "required": false,
-          "type": "integer",
           "content": {
             "application/json": {
               "example": {
@@ -695,52 +788,6 @@
       }
     },
     "/v1/admin/preferences": {
-      "get": {
-        "tags": [
-          "Admin"
-        ],
-        "description": "Show all multi-user preferences for instance. Methods are disabled until multi user mode is enabled via the UI.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "example": {
-                    "settings": {
-                      "limit_user_messages": false,
-                      "message_limit": 10
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Instance is not in Multi-User mode. Method denied"
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidAPIKey"
-                }
-              },
-              "application/xml": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidAPIKey"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error"
-          }
-        }
-      },
       "post": {
         "tags": [
           "Admin"
@@ -787,12 +834,10 @@
         "requestBody": {
           "description": "Object with setting key and new value to set. All keys are optional and will not update unless specified.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
-                "limit_user_messages": true,
-                "message_limit": 5
+                "support_email": "support@example.com"
               }
             }
           }
@@ -804,7 +849,7 @@
         "tags": [
           "Documents"
         ],
-        "description": "Upload a new file to AnythingLLM to be parsed and prepared for embedding.",
+        "description": "Upload a new file to AnythingLLM to be parsed and prepared for embedding, with optional metadata.",
         "parameters": [],
         "responses": {
           "200": {
@@ -826,7 +871,7 @@
                         "description": "Unknown",
                         "docSource": "a text file uploaded by the user.",
                         "chunkSource": "anythingllm.txt",
-                        "published": "1/16/2024, 3:07:00 PM",
+                        "published": "1/16/2024, 3:07:00 PM",
                         "wordCount": 93,
                         "token_count_estimate": 115
                       }
@@ -851,6 +896,9 @@
               }
             }
           },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
           "500": {
             "description": "Internal Server Error"
           }
@@ -858,15 +906,150 @@
         "requestBody": {
           "description": "File to be uploaded.",
           "required": true,
-          "type": "file",
           "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "file"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
-                    "format": "binary"
+                    "format": "binary",
+                    "description": "The file to upload"
+                  },
+                  "addToWorkspaces": {
+                    "type": "string",
+                    "description": "comma-separated text-string of workspace slugs to embed the document into post-upload. eg: workspace1,workspace2"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "description": "Key:Value pairs of metadata to attach to the document in JSON Object format. Only specific keys are allowed - see example.",
+                    "example": {
+                      "title": "Custom Title",
+                      "docAuthor": "Author Name",
+                      "description": "A brief description",
+                      "docSource": "Source of the document"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/document/upload/{folderName}": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "description": "Upload a new file to a specific folder in AnythingLLM to be parsed and prepared for embedding. If the folder does not exist, it will be created.",
+        "parameters": [
+          {
+            "name": "folderName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Target folder path (defaults to 'custom-documents' if not provided)",
+            "example": "my-folder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "success": true,
+                    "error": null,
+                    "documents": [
+                      {
+                        "location": "custom-documents/anythingllm.txt-6e8be64c-c162-4b43-9997-b068c0071e8b.json",
+                        "name": "anythingllm.txt-6e8be64c-c162-4b43-9997-b068c0071e8b.json",
+                        "url": "file://Users/tim/Documents/anything-llm/collector/hotdir/anythingllm.txt",
+                        "title": "anythingllm.txt",
+                        "docAuthor": "Unknown",
+                        "description": "Unknown",
+                        "docSource": "a text file uploaded by the user.",
+                        "chunkSource": "anythingllm.txt",
+                        "published": "1/16/2024, 3:07:00 PM",
+                        "wordCount": 93,
+                        "token_count_estimate": 115
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "success": false,
+                    "error": "Document processing API is not online. Document will not be processed automatically."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "File to be uploaded, with optional metadata.",
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The file to upload"
+                  },
+                  "addToWorkspaces": {
+                    "type": "string",
+                    "description": "comma-separated text-string of workspace slugs to embed the document into post-upload. eg: workspace1,workspace2"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "description": "Key:Value pairs of metadata to attach to the document in JSON Object format. Only specific keys are allowed - see example.",
+                    "example": {
+                      "title": "Custom Title",
+                      "docAuthor": "Author Name",
+                      "description": "A brief description",
+                      "docSource": "Source of the document"
+                    }
                   }
                 }
               }
@@ -880,7 +1063,7 @@
         "tags": [
           "Documents"
         ],
-        "description": "Upload a valid URL for AnythingLLM to scrape and prepare for embedding.",
+        "description": "Upload a valid URL for AnythingLLM to scrape and prepare for embedding. The link property can be a single URL string or an array of URL strings. Optionally, specify a comma-separated list of workspace slugs to embed the document into post-upload.",
         "parameters": [],
         "responses": {
           "200": {
@@ -900,8 +1083,8 @@
                         "docAuthor": "no author found",
                         "description": "No description found.",
                         "docSource": "URL link uploaded by the user.",
-                        "chunkSource": "https:useanything.com.html",
-                        "published": "1/16/2024, 3:46:33 PM",
+                        "chunkSource": "https:anythingllm.com.html",
+                        "published": "1/16/2024, 3:46:33 PM",
                         "wordCount": 252,
                         "pageContent": "AnythingLLM is the best....",
                         "token_count_estimate": 447,
@@ -928,20 +1111,33 @@
               }
             }
           },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
           "500": {
             "description": "Internal Server Error"
           }
         },
         "requestBody": {
-          "description": "Link of web address to be scraped.",
+          "description": "Link of web address to be scraped and optionally a comma-separated list of workspace slugs to embed the document into post-upload, and optional metadata. The link property also accepts an array of links to process in a single request.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "example": {
-                  "link": "https://useanything.com"
+                  "link": "https://anythingllm.com",
+                  "addToWorkspaces": "workspace1,workspace2",
+                  "scraperHeaders": {
+                    "Authorization": "Bearer token123",
+                    "My-Custom-Header": "value"
+                  },
+                  "metadata": {
+                    "title": "Custom Title",
+                    "docAuthor": "Author Name",
+                    "description": "A brief description",
+                    "docSource": "Source of the document"
+                  }
                 }
               }
             }
@@ -975,7 +1171,7 @@
                         "description": "No description found.",
                         "docSource": "My custom description set during upload",
                         "chunkSource": "no chunk source specified",
-                        "published": "1/16/2024, 3:46:33 PM",
+                        "published": "1/16/2024, 3:46:33 PM",
                         "wordCount": 252,
                         "pageContent": "AnythingLLM is the best....",
                         "token_count_estimate": 447,
@@ -1012,14 +1208,15 @@
         "requestBody": {
           "description": "Text content and metadata of the file to be saved to the system. Use metadata-schema endpoint to get the possible metadata keys",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "example": {
                   "textContent": "This is the raw text that will be saved as a document in AnythingLLM.",
+                  "addToWorkspaces": "workspace1,workspace2",
                   "metadata": {
+                    "title": "This key is required. See in /server/endpoints/api/document/index.js:287",
                     "keyOne": "valueOne",
                     "keyTwo": "valueTwo",
                     "etc": "etc"
@@ -1036,7 +1233,7 @@
         "tags": [
           "Documents"
         ],
-        "description": "List of all locally-stored documents in instance",
+        "description": "List of all locally-stored documents in instance. Optionally, pass ?folder=name to fetch the contents of a single folder, paginated with offset and limit (limit=all returns every document in that folder).",
         "parameters": [],
         "responses": {
           "200": {
@@ -1064,6 +1261,94 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/documents/folder/{folderName}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "description": "Get all documents stored in a specific folder. Returns every document by default; pass offset and limit to paginate.",
+        "parameters": [
+          {
+            "name": "folderName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Name of the folder to retrieve documents from"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of documents to skip. Defaults to 0.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max documents to return, capped at 1000. Defaults to all, which returns every document in the folder.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "folder": "custom-documents",
+                    "documents": [
+                      {
+                        "name": "document1.json",
+                        "type": "file",
+                        "cached": false,
+                        "pinnedWorkspaces": [],
+                        "watched": false,
+                        "more": "data"
+                      },
+                      {
+                        "name": "document2.json",
+                        "type": "file",
+                        "cached": false,
+                        "pinnedWorkspaces": [],
+                        "watched": false,
+                        "more": "data"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": "OK"
           },
           "403": {
             "description": "Forbidden",
@@ -1307,13 +1592,72 @@
         "requestBody": {
           "description": "Name of the folder to create.",
           "required": true,
-          "type": "object",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string",
+                "example": {
+                  "name": "new-folder"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/document/remove-folder": {
+      "delete": {
+        "tags": [
+          "Documents"
+        ],
+        "description": "Remove a folder and all its contents from the documents storage directory.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "success": true,
+                    "message": "Folder removed successfully"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "description": "Name of the folder to remove.",
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "example": {
-                  "name": "new-folder"
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "my-folder"
+                  }
                 }
               }
             }
@@ -1365,7 +1709,6 @@
         "requestBody": {
           "description": "Array of objects containing source and destination paths of files to move.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "schema": {
@@ -1380,6 +1723,82 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/document/generated-files/{filename}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "description": "Download a file generated by an agent skill (e.g., PDF, DOCX, XLSX, PPTX) or a generated image (img-*.png). The filename is returned in the `outputs` array of a chat response when an agent generates a file or image. Use the `storageFilename` value from that response to download the file.",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The storage filename returned in the chat response outputs array (e.g., pdf-e9e14f28-d6b6-4f49-91a0-dd331517f567.pdf)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File downloaded successfully",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "error": "Invalid filename format"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "error": "File not found"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         }
       }
@@ -1415,6 +1834,9 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request"
+          },
           "403": {
             "description": "Forbidden",
             "content": {
@@ -1435,13 +1857,19 @@
           }
         },
         "requestBody": {
-          "description": "JSON object containing new display name of workspace.",
+          "description": "JSON object containing workspace configuration.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
-                "name": "My New Workspace"
+                "name": "My New Workspace",
+                "similarityThreshold": 0.7,
+                "openAiTemp": 0.7,
+                "openAiHistory": 20,
+                "openAiPrompt": "Custom prompt for responses",
+                "queryRefusalResponse": "Custom refusal message",
+                "chatMode": "chat",
+                "topN": 4
               }
             }
           }
@@ -1472,7 +1900,8 @@
                         "openAiTemp": null,
                         "lastUpdatedAt": "2023-08-17 00:45:03",
                         "openAiHistory": 20,
-                        "openAiPrompt": null
+                        "openAiPrompt": null,
+                        "threads": []
                       }
                     ]
                   }
@@ -1526,17 +1955,20 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "workspace": {
-                      "id": 79,
-                      "name": "My workspace",
-                      "slug": "my-workspace-123",
-                      "createdAt": "2023-08-17 00:45:03",
-                      "openAiTemp": null,
-                      "lastUpdatedAt": "2023-08-17 00:45:03",
-                      "openAiHistory": 20,
-                      "openAiPrompt": null,
-                      "documents": []
-                    }
+                    "workspace": [
+                      {
+                        "id": 79,
+                        "name": "My workspace",
+                        "slug": "my-workspace-123",
+                        "createdAt": "2023-08-17 00:45:03",
+                        "openAiTemp": null,
+                        "lastUpdatedAt": "2023-08-17 00:45:03",
+                        "openAiHistory": 20,
+                        "openAiPrompt": null,
+                        "documents": [],
+                        "threads": []
+                      }
+                    ]
                   }
                 }
               }
@@ -1673,7 +2105,6 @@
         "requestBody": {
           "description": "JSON object containing new settings to update a workspace. All keys are optional and will not update unless provided",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -1702,6 +2133,33 @@
               "type": "string"
             },
             "description": "Unique slug of workspace to find"
+          },
+          {
+            "name": "apiSessionId",
+            "in": "query",
+            "description": "Optional apiSessionId to filter by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Optional number of chat messages to return (default: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "Optional order of chat messages (asc or desc)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1824,7 +2282,6 @@
         "requestBody": {
           "description": "JSON object of additions and removals of documents to add to update a workspace. The value should be the folder + filename with the exclusions of the top-level documents path.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -1840,7 +2297,7 @@
         }
       }
     },
-    "/workspace/{slug}/update-pin": {
+    "/v1/workspace/{slug}/update-pin": {
       "post": {
         "tags": [
           "Workspaces"
@@ -1884,7 +2341,6 @@
         "requestBody": {
           "description": "JSON object with the document path and pin status to update.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -1959,14 +2415,27 @@
           }
         },
         "requestBody": {
-          "description": "Send a prompt to the workspace and the type of conversation (query or chat).<br/><b>Query:</b> Will not use LLM unless there are relevant sources from vectorDB & does not recall chat history.<br/><b>Chat:</b> Uses LLM general knowledge w/custom embeddings to produce output, uses rolling chat history.",
+          "description": "Send a prompt to the workspace and the type of conversation (automatic, query or chat).<br/><b>Query:</b> Will not use LLM unless there are relevant sources from vectorDB & does not recall chat history.<br/><b>Automatic:</b> Will use tool-calling if the provider supports native tool calling without needing to invoke @agent.<br/><b>Chat:</b> Uses LLM general knowledge w/custom embeddings to produce output, uses rolling chat history.<br/><b>Attachments:</b> Can include images and documents.<br/><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Document attachments:</b> must have the mime type <code>application/anythingllm-document</code> - otherwise it will be passed to the LLM as an image and may fail to process. This uses the built-in document processor to first parse the document to text before injecting it into the context window.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
                 "message": "What is AnythingLLM?",
-                "mode": "query | chat"
+                "mode": "automatic | query | chat",
+                "sessionId": "identifier-to-partition-chats-by-external-id",
+                "attachments": [
+                  {
+                    "name": "image.png",
+                    "mime": "image/png",
+                    "contentString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  },
+                  {
+                    "name": "this is a document.pdf",
+                    "mime": "application/anythingllm-document",
+                    "contentString": "data:application/pdf;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  }
+                ],
+                "reset": false
               }
             }
           }
@@ -1995,6 +2464,9 @@
               "text/event-stream": {
                 "schema": {
                   "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
                   "example": [
                     {
                       "id": "uuid-123",
@@ -2051,14 +2523,101 @@
           }
         },
         "requestBody": {
-          "description": "Send a prompt to the workspace and the type of conversation (query or chat).<br/><b>Query:</b> Will not use LLM unless there are relevant sources from vectorDB & does not recall chat history.<br/><b>Chat:</b> Uses LLM general knowledge w/custom embeddings to produce output, uses rolling chat history.",
+          "description": "Send a prompt to the workspace and the type of conversation (automatic, query or chat).<br/><b>Query:</b> Will not use LLM unless there are relevant sources from vectorDB & does not recall chat history.<br/><b>Automatic:</b> Will use tool-calling if the provider supports native tool calling without needing to invoke @agent.<br/><b>Chat:</b> Uses LLM general knowledge w/custom embeddings to produce output, uses rolling chat history.<br/><b>Attachments:</b> Can include images and documents.<br/><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Document attachments:</b> must have the mime type <code>application/anythingllm-document</code> - otherwise it will be passed to the LLM as an image and may fail to process. This uses the built-in document processor to first parse the document to text before injecting it into the context window.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
                 "message": "What is AnythingLLM?",
-                "mode": "query | chat"
+                "mode": "automatic | query | chat",
+                "sessionId": "identifier-to-partition-chats-by-external-id",
+                "attachments": [
+                  {
+                    "name": "image.png",
+                    "mime": "image/png",
+                    "contentString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  },
+                  {
+                    "name": "this is a document.pdf",
+                    "mime": "application/anythingllm-document",
+                    "contentString": "data:application/pdf;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  }
+                ],
+                "reset": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspace/{slug}/vector-search": {
+      "post": {
+        "tags": [
+          "Workspaces"
+        ],
+        "description": "Perform a vector similarity search in a workspace",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique slug of workspace to search in"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "results": [
+                      {
+                        "id": "5a6bee0a-306c-47fc-942b-8ab9bf3899c4",
+                        "text": "Document chunk content...",
+                        "metadata": {
+                          "url": "file://document.txt",
+                          "title": "document.txt",
+                          "author": "no author specified",
+                          "description": "no description found",
+                          "docSource": "post:123456",
+                          "chunkSource": "document.txt",
+                          "published": "12/1/2024, 11:39:39 AM",
+                          "wordCount": 8,
+                          "tokenCount": 9
+                        },
+                        "distance": 0.541887640953064,
+                        "score": 0.45811235904693604
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "description": "Query to perform vector search with and optional parameters",
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "query": "What is the meaning of life?",
+                "topN": 4,
+                "scoreThreshold": 0.75
               }
             }
           }
@@ -2233,7 +2792,6 @@
         "requestBody": {
           "description": "Key pair object that matches a valid setting and value. Get keys from GET /v1/system or refer to codebase.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -2282,6 +2840,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request"
           },
           "403": {
             "description": "Forbidden",
@@ -2430,13 +2991,14 @@
           }
         },
         "requestBody": {
-          "description": "Optional userId associated with the thread",
+          "description": "Optional userId associated with the thread, thread slug and thread name",
           "required": false,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
-                "userId": 1
+                "userId": 1,
+                "name": "Name",
+                "slug": "thread-slug"
               }
             }
           }
@@ -2490,9 +3052,6 @@
               }
             }
           },
-          "400": {
-            "description": "Bad Request"
-          },
           "403": {
             "description": "Forbidden",
             "content": {
@@ -2508,6 +3067,9 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found"
+          },
           "500": {
             "description": "Internal Server Error"
           }
@@ -2515,7 +3077,6 @@
         "requestBody": {
           "description": "JSON object containing new name to update the thread.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -2635,9 +3196,6 @@
               }
             }
           },
-          "400": {
-            "description": "Bad Request"
-          },
           "403": {
             "description": "Forbidden",
             "content": {
@@ -2652,6 +3210,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found"
           },
           "500": {
             "description": "Internal Server Error"
@@ -2727,6 +3288,9 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found"
+          },
           "500": {
             "description": "Internal Server Error"
           }
@@ -2734,13 +3298,20 @@
         "requestBody": {
           "description": "Send a prompt to the workspace thread and the type of conversation (query or chat).",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
                 "message": "What is AnythingLLM?",
                 "mode": "query | chat",
-                "userId": 1
+                "userId": 1,
+                "attachments": [
+                  {
+                    "name": "image.png",
+                    "mime": "image/png",
+                    "contentString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  }
+                ],
+                "reset": false
               }
             }
           }
@@ -2779,6 +3350,9 @@
               "text/event-stream": {
                 "schema": {
                   "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
                   "example": [
                     {
                       "id": "uuid-123",
@@ -2837,13 +3411,25 @@
         "requestBody": {
           "description": "Send a prompt to the workspace thread and the type of conversation (query or chat).",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
                 "message": "What is AnythingLLM?",
                 "mode": "query | chat",
-                "userId": 1
+                "userId": 1,
+                "attachments": [
+                  {
+                    "name": "image.png",
+                    "mime": "image/png",
+                    "contentString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  },
+                  {
+                    "name": "this is a document.pdf",
+                    "mime": "application/anythingllm-document",
+                    "contentString": "data:application/pdf;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                  }
+                ],
+                "reset": false
               }
             }
           }
@@ -2906,6 +3492,65 @@
         }
       }
     },
+    "/v1/users/{id}/issue-auth-token": {
+      "get": {
+        "tags": [
+          "User Management"
+        ],
+        "description": "Issue a temporary auth token for a user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The ID of the user to issue a temporary auth token for"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "token": "1234567890",
+                    "loginPath": "/sso/simple?token=1234567890"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Instance is not in Multi-User mode. Permission denied."
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
     "/v1/openai/models": {
       "get": {
         "tags": [
@@ -2921,22 +3566,19 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "models": [
+                    "object": "list",
+                    "data": [
                       {
-                        "name": "Sample workspace",
-                        "model": "sample-workspace",
-                        "llm": {
-                          "provider": "ollama",
-                          "model": "llama3:8b"
-                        }
+                        "id": "model-id-0",
+                        "object": "model",
+                        "created": 1686935002,
+                        "owned_by": "organization-owner"
                       },
                       {
-                        "name": "Second workspace",
-                        "model": "workspace-2",
-                        "llm": {
-                          "provider": "openai",
-                          "model": "gpt-3.5-turbo"
-                        }
+                        "id": "model-id-1",
+                        "object": "model",
+                        "created": 1686935002,
+                        "owned_by": "organization-owner"
                       }
                     ]
                   }
@@ -3004,7 +3646,6 @@
         "requestBody": {
           "description": "Send a prompt to the workspace with full use of documents as if sending a chat in AnythingLLM. Only supports some values of OpenAI API. See example below.",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -3031,6 +3672,83 @@
                 "temperature": 0.7
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/openai/images/generations": {
+      "post": {
+        "tags": [
+          "OpenAI Compatible Endpoints"
+        ],
+        "description": "Generate or edit an image using the system-configured image generation provider. Send a multipart/form-data request with a \"prompt\" field and an optional \"size\" field. To edit an existing image, attach one or more files as \"image_references\" — when present, the request is automatically routed to the provider image editing endpoint. Returns the image as a base64 PNG. If the provider does not support reference images (e.g. Ollama), the request fails with a descriptive error.",
+        "parameters": [
+          {
+            "name": "prompt",
+            "in": "formData",
+            "description": "Text prompt describing the image to generate or the edit to apply.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "in": "formData",
+            "description": "Image dimensions (e.g. 1024x1024). Defaults to the system IMAGE_GEN_SIZE_PREF setting.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "image_references",
+            "in": "formData",
+            "description": "Optional reference image file(s) for editing. When provided, the request is routed to the edit endpoint instead of generation.",
+            "required": false,
+            "schema": {
+              "type": "file"
+            }
+          },
+          {
+            "name": "response_format",
+            "in": "formData",
+            "description": "Response format: b64_json (default) returns base64-encoded image data in JSON, blob returns the raw image bytes with content-type image/png.",
+            "required": false,
+            "default": "b64_json",
+            "enum": [
+              "b64_json",
+              "blob"
+            ],
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         }
       }
@@ -3068,7 +3786,6 @@
         "requestBody": {
           "description": "The input string(s) to be embedded. If the text is too long for the embedder model context, it will fail to embed. The vector and associated chunk metadata will be returned in the array order provided",
           "required": true,
-          "type": "object",
           "content": {
             "application/json": {
               "example": {
@@ -3128,6 +3845,434 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/embed": {
+      "get": {
+        "tags": [
+          "Embed"
+        ],
+        "description": "List all active embeds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "embeds": [
+                      {
+                        "id": 1,
+                        "uuid": "embed-uuid-1",
+                        "enabled": true,
+                        "chat_mode": "query",
+                        "createdAt": "2023-04-01T12:00:00Z",
+                        "workspace": {
+                          "id": 1,
+                          "name": "Workspace 1"
+                        },
+                        "chat_count": 10
+                      },
+                      {
+                        "id": 2,
+                        "uuid": "embed-uuid-2",
+                        "enabled": false,
+                        "chat_mode": "chat",
+                        "createdAt": "2023-04-02T14:30:00Z",
+                        "workspace": {
+                          "id": 1,
+                          "name": "Workspace 1"
+                        },
+                        "chat_count": 10
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/embed/{embedUuid}/chats": {
+      "get": {
+        "tags": [
+          "Embed"
+        ],
+        "description": "Get all chats for a specific embed",
+        "parameters": [
+          {
+            "name": "embedUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID of the embed"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "chats": [
+                      {
+                        "id": 1,
+                        "session_id": "session-uuid-1",
+                        "prompt": "Hello",
+                        "response": "Hi there!",
+                        "createdAt": "2023-04-01T12:00:00Z"
+                      },
+                      {
+                        "id": 2,
+                        "session_id": "session-uuid-2",
+                        "prompt": "How are you?",
+                        "response": "I'm doing well, thank you!",
+                        "createdAt": "2023-04-02T14:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Embed not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/embed/{embedUuid}/chats/{sessionUuid}": {
+      "get": {
+        "tags": [
+          "Embed"
+        ],
+        "description": "Get chats for a specific embed and session",
+        "parameters": [
+          {
+            "name": "embedUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID of the embed"
+          },
+          {
+            "name": "sessionUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID of the session"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "chats": [
+                      {
+                        "id": 1,
+                        "prompt": "Hello",
+                        "response": "Hi there!",
+                        "createdAt": "2023-04-01T12:00:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Embed or session not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/v1/embed/new": {
+      "post": {
+        "tags": [
+          "Embed"
+        ],
+        "description": "Create a new embed configuration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "embed": {
+                      "id": 1,
+                      "uuid": "embed-uuid-1",
+                      "enabled": true,
+                      "chat_mode": "chat",
+                      "allowlist_domains": [
+                        "example.com"
+                      ],
+                      "allow_model_override": false,
+                      "allow_temperature_override": false,
+                      "allow_prompt_override": false,
+                      "max_chats_per_day": 100,
+                      "max_chats_per_session": 10,
+                      "createdAt": "2023-04-01T12:00:00Z",
+                      "workspace_slug": "workspace-slug-1"
+                    },
+                    "error": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "description": "JSON object containing embed configuration details",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "workspace_slug": "workspace-slug-1",
+                  "chat_mode": "chat",
+                  "allowlist_domains": [
+                    "example.com"
+                  ],
+                  "allow_model_override": false,
+                  "allow_temperature_override": false,
+                  "allow_prompt_override": false,
+                  "max_chats_per_day": 100,
+                  "max_chats_per_session": 10
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embed/{embedUuid}": {
+      "post": {
+        "tags": [
+          "Embed"
+        ],
+        "description": "Update an existing embed configuration",
+        "parameters": [
+          {
+            "name": "embedUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID of the embed to update"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "success": true,
+                    "error": null
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Embed not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "description": "JSON object containing embed configuration updates",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "enabled": true,
+                  "chat_mode": "chat",
+                  "allowlist_domains": [
+                    "example.com"
+                  ],
+                  "allow_model_override": false,
+                  "allow_temperature_override": false,
+                  "allow_prompt_override": false,
+                  "max_chats_per_day": 100,
+                  "max_chats_per_session": 10
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Embed"
+        ],
+        "description": "Delete an existing embed configuration",
+        "parameters": [
+          {
+            "name": "embedUuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "UUID of the embed to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "example": {
+                    "success": true,
+                    "error": null
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidAPIKey"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Embed not found"
           },
           "500": {
             "description": "Internal Server Error"

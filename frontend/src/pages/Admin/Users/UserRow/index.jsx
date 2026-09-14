@@ -1,10 +1,11 @@
+import moment from "moment";
 import { useRef, useState } from "react";
 import { titleCase } from "text-case";
 import Admin from "@/models/admin";
 import EditUserModal from "./EditUserModal";
 import showToast from "@/utils/toast";
 import { useModal } from "@/hooks/useModal";
-import ModalWrapper from "@/components/ModalWrapper";
+import Modal from "@/components/lib/Modal";
 
 const ModMap = {
   admin: ["admin", "manager", "default"],
@@ -57,18 +58,18 @@ export default function UserRow({ currUser, user }) {
     <>
       <tr
         ref={rowRef}
-        className="bg-transparent text-white text-opacity-80 text-sm font-medium"
+        className="bg-transparent text-white text-opacity-80 text-xs font-medium border-b border-white/10 h-10"
       >
-        <th scope="row" className="px-6 py-4 whitespace-nowrap">
+        <th scope="row" className="px-6 whitespace-nowrap">
           {user.username}
         </th>
-        <td className="px-6 py-4">{titleCase(user.role)}</td>
-        <td className="px-6 py-4">{user.createdAt}</td>
-        <td className="px-6 py-4 flex items-center gap-x-6">
+        <td className="px-6">{titleCase(user.role)}</td>
+        <td className="px-6">{moment(user.createdAt).format("lll")}</td>
+        <td className="px-6 flex items-center gap-x-6 h-full mt-2">
           {canModify && (
             <button
               onClick={openModal}
-              className="text-sm font-medium text-white/80 rounded-lg hover:text-white px-2 py-1 hover:bg-white hover:bg-opacity-10"
+              className="text-xs font-medium text-white/80 light:text-black/80 rounded-lg hover:text-white hover:light:text-gray-500 px-2 py-1 hover:bg-white hover:bg-opacity-10"
             >
               Edit
             </button>
@@ -77,13 +78,13 @@ export default function UserRow({ currUser, user }) {
             <>
               <button
                 onClick={handleSuspend}
-                className="text-sm font-medium text-white/80 hover:text-orange-300 rounded-lg px-2 py-1 hover:bg-white hover:bg-opacity-10"
+                className="text-xs font-medium text-white/80 light:text-black/80 hover:light:text-orange-500 hover:text-orange-300 rounded-lg px-2 py-1 hover:bg-white hover:light:bg-orange-50 hover:bg-opacity-10"
               >
                 {suspended ? "Unsuspend" : "Suspend"}
               </button>
               <button
                 onClick={handleDelete}
-                className="text-sm font-medium text-white/80 hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-800 hover:bg-opacity-20"
+                className="text-xs font-medium text-white/80 light:text-black/80 hover:light:text-red-500 hover:text-red-300 rounded-lg px-2 py-1 hover:bg-white hover:light:bg-red-50 hover:bg-opacity-10"
               >
                 Delete
               </button>
@@ -91,13 +92,13 @@ export default function UserRow({ currUser, user }) {
           )}
         </td>
       </tr>
-      <ModalWrapper isOpen={isOpen}>
+      <Modal isOpen={isOpen} onClose={closeModal}>
         <EditUserModal
           currentUser={currUser}
           user={user}
           closeModal={closeModal}
         />
-      </ModalWrapper>
+      </Modal>
     </>
   );
 }

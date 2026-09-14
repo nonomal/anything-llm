@@ -371,7 +371,7 @@ function cannonball({
  *
  * @param {Object} config - params to call
  * @param {object} config.nDocs = fill size of the window
- * @param {object} config.searchResults = vector similarityResponse results for .sources
+ * @param {object} config.searchResults = vector `similarityResponse` results for .sources
  * @param {object[]} config.history - rawHistory of chat containing sources
  * @param {string[]} config.filterIdentifiers - Pinned document identifiers to prevent duplicate context
  * @returns {{
@@ -384,7 +384,7 @@ function fillSourceWindow({
   searchResults = [], // Sources from similarity search
   history = [], // Raw history
   filterIdentifiers = [], // pinned document sources
-} = config) {
+} = {}) {
   const sources = [...searchResults];
 
   if (sources.length >= nDocs || history.length === 0) {
@@ -407,7 +407,7 @@ function fillSourceWindow({
   // Looking at this function by itself you may think that this loop could be extreme for long history chats,
   // but this was already handled where `history` we derived. This comes from `recentChatHistory` which
   // includes a limit for history (default: 20). So this loop does not look as extreme as on first glance.
-  for (const chat of history.reverse()) {
+  for (const chat of [...history].reverse()) {
     if (sources.length >= nDocs) {
       log(
         `Citations backfilled to ${nDocs} references from ${searchResults.length} original citations.`

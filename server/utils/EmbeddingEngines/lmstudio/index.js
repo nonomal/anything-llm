@@ -1,4 +1,8 @@
-const { maximumChunkLength } = require("../../helpers");
+const { parseLMStudioBasePath } = require("../../AiProviders/lmStudio");
+const {
+  maximumChunkLength,
+  reportEmbeddingProgress,
+} = require("../../helpers");
 
 class LMStudioEmbedder {
   constructor() {
@@ -6,24 +10,29 @@ class LMStudioEmbedder {
       throw new Error("No embedding base path was set.");
     if (!process.env.EMBEDDING_MODEL_PREF)
       throw new Error("No embedding model was set.");
-    this.basePath = `${process.env.EMBEDDING_BASE_PATH}/embeddings`;
+
+    const apiKey = process.env.LMSTUDIO_AUTH_TOKEN ?? null;
+    this.className = "LMStudioEmbedder";
+    const { OpenAI: OpenAIApi } = require("openai");
+    this.lmstudio = new OpenAIApi({
+      baseURL: parseLMStudioBasePath(process.env.EMBEDDING_BASE_PATH),
+      apiKey,
+    });
     this.model = process.env.EMBEDDING_MODEL_PREF;
 
-    // Limit of how many strings we can process in a single pass to stay with resource or network limits
     // Limit of how many strings we can process in a single pass to stay with resource or network limits
     this.maxConcurrentChunks = 1;
     this.embeddingMaxChunkLength = maximumChunkLength();
   }
 
   log(text, ...args) {
-    console.log(`\x1b[36m[${this.constructor.name}]\x1b[0m ${text}`, ...args);
+    console.log(`\x1b[36m[${this.className}]\x1b[0m ${text}`, ...args);
   }
 
   async #isAlive() {
-    return await fetch(`${this.basePath}/models`, {
-      method: "HEAD",
-    })
-      .then((res) => res.ok)
+    return await this.lmstudio.models
+      .list()
+      .then((res) => res?.data?.length > 0)
       .catch((e) => {
         this.log(e.message);
         return false;
@@ -52,32 +61,33 @@ class LMStudioEmbedder {
     // get dropped or go unanswered >:(
     let results = [];
     let hasError = false;
-    for (const chunk of textChunks) {
-      if (hasError) break; // If an error occurred don't continue and exit early.
+    for (const [idx, chunk] of textChunks.entries()) {
+      if (hasError) break;
       results.push(
-        await fetch(this.basePath, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+        await this.lmstudio.embeddings
+          .create({
             model: this.model,
             input: chunk,
-          }),
-        })
-          .then((res) => res.json())
-          .then((json) => {
-            const embedding = json.data[0].embedding;
+            encoding_format: "base64",
+          })
+          .then((result) => {
+            const embedding = result.data?.[0]?.embedding;
             if (!Array.isArray(embedding) || !embedding.length)
               throw {
                 type: "EMPTY_ARR",
                 message: "The embedding was empty from LMStudio",
               };
+            reportEmbeddingProgress(idx + 1, textChunks.length);
             return { data: embedding, error: null };
           })
-          .catch((error) => {
+          .catch((e) => {
+            e.type =
+              e?.response?.data?.error?.code ||
+              e?.response?.status ||
+              "failed_to_embed";
+            e.message = e?.response?.data?.error?.message || e.message;
             hasError = true;
-            return { data: [], error };
+            return { data: [], error: e };
           })
       );
     }

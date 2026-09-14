@@ -1,8 +1,11 @@
 const { v4: uuidv4 } = require("uuid");
 const { DocumentManager } = require("../DocumentManager");
 const { WorkspaceChats } = require("../../models/workspaceChats");
-const { getVectorDbClass, getLLMProvider } = require("../helpers");
+const { WorkspaceParsedFiles } = require("../../models/workspaceParsedFiles");
+const { getVectorDbClass, resolveProviderConnector } = require("../helpers");
+const { addChatCostToMetrics } = require("../helpers/modelPricing");
 const { writeResponseChunk } = require("../helpers/chat/responses");
+const { abortConnectorOnClientDisconnect } = require("../helpers/abortSignals");
 const { grepAgents } = require("./agents");
 const {
   grepCommand,
@@ -12,15 +15,16 @@ const {
   sourceIdentifier,
 } = require("./index");
 
-const VALID_CHAT_MODE = ["chat", "query"];
+const VALID_CHAT_MODE = ["automatic", "chat", "query"];
 
 async function streamChatWithWorkspace(
   response,
   workspace,
   message,
-  chatMode = "chat",
+  chatMode = "automatic",
   user = null,
-  thread = null
+  thread = null,
+  attachments = []
 ) {
   const uuid = uuidv4();
   const updatedMessage = await grepCommand(message, user);
@@ -31,7 +35,9 @@ async function streamChatWithWorkspace(
       message,
       uuid,
       user,
-      thread
+      thread,
+      response,
+      attachments
     );
     writeResponseChunk(response, data);
     return;
@@ -41,17 +47,50 @@ async function streamChatWithWorkspace(
   const isAgentChat = await grepAgents({
     uuid,
     response,
-    message,
+    message: updatedMessage,
     user,
     workspace,
     thread,
+    attachments,
   });
   if (isAgentChat) return;
 
-  const LLMConnector = getLLMProvider({
-    provider: workspace?.chatProvider,
-    model: workspace?.chatModel,
+  const {
+    connector: LLMConnector,
+    routingMetadata,
+    prefetchedContext,
+    error: routerError,
+  } = await resolveLLMConnector({
+    workspace,
+    message: updatedMessage,
+    user,
+    thread,
+    attachments,
   });
+
+  if (routerError) {
+    return writeResponseChunk(response, {
+      id: uuid,
+      type: "abort",
+      textResponse: null,
+      sources: [],
+      close: true,
+      error: routerError,
+    });
+  }
+
+  // Stopping the generation (or closing the tab) should stop the provider
+  // generating too, not just stop us reading the response.
+  abortConnectorOnClientDisconnect(response, LLMConnector);
+
+  if (routingMetadata?.routedTo?.shouldNotify) {
+    writeResponseChunk(response, {
+      uuid: `${uuid}:route`,
+      type: "modelRouteNotification",
+      routedTo: routingMetadata.routedTo,
+    });
+  }
+
   const VectorDb = getVectorDbClass();
 
   const messageLimit = workspace?.openAiHistory || 20;
@@ -69,6 +108,7 @@ async function streamChatWithWorkspace(
       type: "textResponse",
       textResponse,
       sources: [],
+      attachments,
       close: true,
       error: null,
     });
@@ -79,6 +119,7 @@ async function streamChatWithWorkspace(
         text: textResponse,
         sources: [],
         type: chatMode,
+        attachments,
       },
       threadId: thread?.id || null,
       include: false,
@@ -91,50 +132,66 @@ async function streamChatWithWorkspace(
   // 1. Chatting in "chat" mode and may or may _not_ have embeddings
   // 2. Chatting in "query" mode and has at least 1 embedding
   let completeText;
+  let metrics = {};
   let contextTexts = [];
   let sources = [];
   let pinnedDocIdentifiers = [];
-  const { rawHistory, chatHistory } = await recentChatHistory({
-    user,
-    workspace,
-    thread,
-    messageLimit,
+
+  // If the router pre-fetched context we can reuse it; otherwise fetch fresh.
+  const {
+    rawHistory,
+    chatHistory,
+    pinnedDocs: prefetchedPinnedDocs,
+    parsedFiles: prefetchedParsedFiles,
+  } = prefetchedContext ??
+  (await recentChatHistory({ user, workspace, thread, messageLimit }));
+
+  // Pinned docs — reuse pre-fetched if available, otherwise fetch with token cap.
+  const pinnedDocs =
+    prefetchedPinnedDocs ??
+    (await new DocumentManager({
+      workspace,
+      maxTokens: LLMConnector.promptWindowLimit(),
+    }).pinnedDocs());
+  pinnedDocs.forEach((doc) => {
+    const { pageContent, ...metadata } = doc;
+    pinnedDocIdentifiers.push(sourceIdentifier(doc));
+    contextTexts.push(doc.pageContent);
+    sources.push({
+      text:
+        pageContent.slice(0, 1_000) + "...continued on in source document...",
+      ...metadata,
+    });
   });
 
-  // Look for pinned documents and see if the user decided to use this feature. We will also do a vector search
-  // as pinning is a supplemental tool but it should be used with caution since it can easily blow up a context window.
-  // However we limit the maximum of appended context to 80% of its overall size, mostly because if it expands beyond this
-  // it will undergo prompt compression anyway to make it work. If there is so much pinned that the context here is bigger than
-  // what the model can support - it would get compressed anyway and that really is not the point of pinning. It is really best
-  // suited for high-context models.
-  await new DocumentManager({
-    workspace,
-    maxTokens: LLMConnector.promptWindowLimit(),
-  })
-    .pinnedDocs()
-    .then((pinnedDocs) => {
-      pinnedDocs.forEach((doc) => {
-        const { pageContent, ...metadata } = doc;
-        pinnedDocIdentifiers.push(sourceIdentifier(doc));
-        contextTexts.push(doc.pageContent);
-        sources.push({
-          text:
-            pageContent.slice(0, 1_000) +
-            "...continued on in source document...",
-          ...metadata,
-        });
-      });
+  // Parsed files — reuse pre-fetched if available, otherwise fetch fresh.
+  const parsedFiles =
+    prefetchedParsedFiles ??
+    (await WorkspaceParsedFiles.getContextFiles(
+      workspace,
+      thread || null,
+      user || null
+    ));
+  parsedFiles.forEach((doc) => {
+    const { pageContent, ...metadata } = doc;
+    contextTexts.push(doc.pageContent);
+    sources.push({
+      text:
+        pageContent.slice(0, 1_000) + "...continued on in source document...",
+      ...metadata,
     });
+  });
 
   const vectorSearchResults =
     embeddingsCount !== 0
       ? await VectorDb.performSimilaritySearch({
           namespace: workspace.slug,
-          input: message,
+          input: updatedMessage,
           LLMConnector,
           similarityThreshold: workspace?.similarityThreshold,
           topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
+          rerank: workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
@@ -195,6 +252,7 @@ async function streamChatWithWorkspace(
         text: textResponse,
         sources: [],
         type: chatMode,
+        attachments,
       },
       threadId: thread?.id || null,
       include: false,
@@ -205,12 +263,20 @@ async function streamChatWithWorkspace(
 
   // Compress & Assemble message to ensure prompt passes token limit with room for response
   // and build system messages based on inputs and history.
+  // Reuse the system prompt from routing pre-fetch when available.
+  const systemPrompt =
+    prefetchedContext?.systemPrompt ??
+    (await chatPrompt(workspace, user, {
+      prompt: updatedMessage,
+      rawHistory,
+    }));
   const messages = await LLMConnector.compressMessages(
     {
-      systemPrompt: chatPrompt(workspace),
+      systemPrompt,
       userPrompt: updatedMessage,
       contextTexts,
       chatHistory,
+      attachments,
     },
     rawHistory
   );
@@ -221,8 +287,17 @@ async function streamChatWithWorkspace(
     console.log(
       `\x1b[31m[STREAMING DISABLED]\x1b[0m Streaming is not available for ${LLMConnector.constructor.name}. Will use regular chat method.`
     );
-    completeText = await LLMConnector.getChatCompletion(messages, {
-      temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
+    const { textResponse, metrics: performanceMetrics } =
+      await LLMConnector.getChatCompletion(messages, {
+        temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
+        user: user,
+      });
+
+    completeText = textResponse;
+    metrics = addChatCostToMetrics(performanceMetrics, {
+      routingMetadata,
+      workspace,
+      connector: LLMConnector,
     });
     writeResponseChunk(response, {
       uuid,
@@ -231,14 +306,21 @@ async function streamChatWithWorkspace(
       textResponse: completeText,
       close: true,
       error: false,
+      metrics,
     });
   } else {
     const stream = await LLMConnector.streamGetChatCompletion(messages, {
       temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
+      user: user,
     });
     completeText = await LLMConnector.handleStream(response, stream, {
       uuid,
       sources,
+    });
+    metrics = addChatCostToMetrics(stream.metrics, {
+      routingMetadata,
+      workspace,
+      connector: LLMConnector,
     });
   }
 
@@ -246,7 +328,13 @@ async function streamChatWithWorkspace(
     const { chat } = await WorkspaceChats.new({
       workspaceId: workspace.id,
       prompt: message,
-      response: { text: completeText, sources, type: chatMode },
+      response: {
+        text: completeText,
+        sources,
+        type: chatMode,
+        attachments,
+        metrics,
+      },
       threadId: thread?.id || null,
       user,
     });
@@ -257,6 +345,7 @@ async function streamChatWithWorkspace(
       close: true,
       error: false,
       chatId: chat.id,
+      metrics,
     });
     return;
   }
@@ -266,8 +355,35 @@ async function streamChatWithWorkspace(
     type: "finalizeResponseStream",
     close: true,
     error: false,
+    metrics,
   });
   return;
+}
+
+async function resolveLLMConnector({
+  workspace,
+  message,
+  user,
+  thread,
+  attachments,
+}) {
+  try {
+    const result = await resolveProviderConnector({
+      workspace,
+      prompt: message,
+      user,
+      thread,
+      attachments,
+    });
+    return { ...result, error: null };
+  } catch (routerError) {
+    return {
+      connector: null,
+      routingMetadata: null,
+      prefetchedContext: null,
+      error: `Model router error: ${routerError.message}`,
+    };
+  }
 }
 
 module.exports = {

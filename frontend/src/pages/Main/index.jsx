@@ -1,25 +1,21 @@
 import React from "react";
-import DefaultChatContainer from "@/components/DefaultChat";
-import Sidebar from "@/components/Sidebar";
 import PasswordModal, { usePasswordModal } from "@/components/Modals/Password";
-import { isMobile } from "react-device-detect";
 import { FullScreenLoader } from "@/components/Preloader";
-import UserMenu from "@/components/UserMenu";
+import Home from "./Home";
+import { isMobile } from "react-device-detect";
+import Sidebar, { SidebarMobileHeader } from "@/components/Sidebar";
 
 export default function Main() {
   const { loading, requiresAuth, mode } = usePasswordModal();
 
   if (loading) return <FullScreenLoader />;
-  if (requiresAuth !== false) {
+  if (requiresAuth !== false)
     return <>{requiresAuth !== null && <PasswordModal mode={mode} />}</>;
-  }
 
   return (
-    <UserMenu>
-      <div className="w-screen h-screen overflow-hidden bg-sidebar flex">
-        {!isMobile && <Sidebar />}
-        <DefaultChatContainer />
-      </div>
-    </UserMenu>
+    <div className="w-screen h-screen overflow-hidden bg-zinc-950 light:bg-slate-50 flex">
+      {!isMobile ? <Sidebar /> : <SidebarMobileHeader />}
+      <Home />
+    </div>
   );
 }

@@ -1,52 +1,88 @@
 import ConnectorImages from "@/components/DataConnectorOption/media";
 import { MagnifyingGlass } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 import GithubOptions from "./Connectors/Github";
+import GitlabOptions from "./Connectors/Gitlab";
+import GiteaOptions from "./Connectors/Gitea";
 import YoutubeOptions from "./Connectors/Youtube";
 import ConfluenceOptions from "./Connectors/Confluence";
+import DrupalWikiOptions from "./Connectors/DrupalWiki";
 import { useState } from "react";
 import ConnectorOption from "./ConnectorOption";
 import WebsiteDepthOptions from "./Connectors/WebsiteDepth";
+import ObsidianOptions from "./Connectors/Obsidian";
+import PaperlessNgxOptions from "./Connectors/PaperlessNgx";
 
-export const DATA_CONNECTORS = {
+export const getDataConnectors = (t) => ({
   github: {
-    name: "GitHub Repo",
+    name: t("connectors.github.name"),
     image: ConnectorImages.github,
-    description:
-      "Import an entire public or private Github repository in a single click.",
+    description: t("connectors.github.description"),
     options: <GithubOptions />,
   },
+  gitlab: {
+    name: t("connectors.gitlab.name"),
+    image: ConnectorImages.gitlab,
+    description: t("connectors.gitlab.description"),
+    options: <GitlabOptions />,
+  },
+  gitea: {
+    name: t("connectors.gitea.name"),
+    image: ConnectorImages.gitea,
+    description: t("connectors.gitea.description"),
+    options: <GiteaOptions />,
+  },
   "youtube-transcript": {
-    name: "YouTube Transcript",
+    name: t("connectors.youtube.name"),
     image: ConnectorImages.youtube,
-    description:
-      "Import the transcription of an entire YouTube video from a link.",
+    description: t("connectors.youtube.description"),
     options: <YoutubeOptions />,
   },
   "website-depth": {
-    name: "Bulk Link Scraper",
+    name: t("connectors.website-depth.name"),
     image: ConnectorImages.websiteDepth,
-    description: "Scrape a website and its sub-links up to a certain depth.",
+    description: t("connectors.website-depth.description"),
     options: <WebsiteDepthOptions />,
   },
   confluence: {
-    name: "Confluence",
+    name: t("connectors.confluence.name"),
     image: ConnectorImages.confluence,
-    description: "Import an entire Confluence page in a single click.",
+    description: t("connectors.confluence.description"),
     options: <ConfluenceOptions />,
   },
-};
+  drupalwiki: {
+    name: "Drupal Wiki",
+    image: ConnectorImages.drupalwiki,
+    description: "Import Drupal Wiki spaces in a single click.",
+    options: <DrupalWikiOptions />,
+  },
+  obsidian: {
+    name: "Obsidian",
+    image: ConnectorImages.obsidian,
+    description: "Import Obsidian vault in a single click.",
+    options: <ObsidianOptions />,
+  },
+  "paperless-ngx": {
+    name: "Paperless-ngx",
+    image: ConnectorImages.paperlessNgx,
+    description: "Import documents from your Paperless-ngx instance.",
+    options: <PaperlessNgxOptions />,
+  },
+});
 
 export default function DataConnectors() {
+  const { t } = useTranslation();
   const [selectedConnector, setSelectedConnector] = useState("github");
   const [searchQuery, setSearchQuery] = useState("");
+  const DATA_CONNECTORS = getDataConnectors(t);
 
   const filteredConnectors = Object.keys(DATA_CONNECTORS).filter((slug) =>
     DATA_CONNECTORS[slug].name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="flex upload-modal -mt-10 relative min-h-[80vh] w-[70vw]">
-      <div className="w-full p-4 top-0 z-20">
+    <div className="flex upload-modal -mt-10 relative h-[70vh] w-[70vw]">
+      <div className="w-full p-4 top-0 z-20 overflow-y-auto h-full">
         <div className="w-full flex items-center sticky top-0 z-50">
           <MagnifyingGlass
             size={16}
@@ -55,8 +91,8 @@ export default function DataConnectors() {
           />
           <input
             type="text"
-            placeholder="Search data connectors"
-            className="border-none bg-zinc-600 z-20 pl-10 h-[38px] rounded-full w-full px-4 py-1 text-sm border-2 border-slate-300/40 outline-none focus:outline-primary-button active:outline-primary-button outline-none text-white"
+            placeholder={t("connectors.search-placeholder")}
+            className="border-none z-20 pl-10 h-[38px] rounded-full w-full px-4 py-1 text-sm border-2 border-slate-300/40 outline-none focus:outline-primary-button active:outline-primary-button outline-none placeholder:text-theme-settings-input-placeholder text-white bg-theme-settings-input-bg"
             autoComplete="off"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -77,13 +113,13 @@ export default function DataConnectors() {
             ))
           ) : (
             <div className="text-white text-center mt-4">
-              No data connectors found.
+              {t("connectors.no-connectors")}
             </div>
           )}
         </div>
       </div>
       <div className="xl:block hidden absolute left-1/2 top-0 bottom-0 w-[0.5px] bg-white/20 -translate-x-1/2"></div>
-      <div className="w-full p-4 top-0 text-white min-w-[500px]">
+      <div className="w-full p-4 pb-8 top-0 text-white min-w-[500px] overflow-y-auto h-full">
         {DATA_CONNECTORS[selectedConnector].options}
       </div>
     </div>

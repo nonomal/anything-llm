@@ -39,6 +39,18 @@ const SlashCommandPresets = {
   // Command + userId must be unique combination.
   create: async function (userId = null, presetData = {}) {
     try {
+      const existingPreset = await this.get({
+        userId: userId ? Number(userId) : null,
+        command: String(presetData.command),
+      });
+
+      if (existingPreset) {
+        console.log(
+          "SlashCommandPresets.create - preset already exists - will not create"
+        );
+        return existingPreset;
+      }
+
       const preset = await prisma.slash_command_presets.create({
         data: {
           ...presetData,
@@ -98,6 +110,32 @@ const SlashCommandPresets = {
     } catch (error) {
       console.error("Failed to delete preset", error.message);
       return false;
+    }
+  },
+
+  /**
+   * Migrates all slash command presets with null userId to the specified admin user.
+   * Called during multi-user mode enablement to assign orphaned presets to the new admin.
+   * @param {number} adminUserId - The admin user ID to assign presets to
+   * @returns {Promise<void>}
+   */
+  migrateToMultiUser: async function (adminUserId) {
+    try {
+      await prisma.slash_command_presets.updateMany({
+        where: { userId: null },
+        data: {
+          userId: adminUserId,
+          uid: adminUserId,
+        },
+      });
+      console.log(
+        "Successfully migrated slash command presets to multi-user mode"
+      );
+    } catch (error) {
+      console.error(
+        "Error migrating slash command presets to multi-user mode:",
+        error
+      );
     }
   },
 };

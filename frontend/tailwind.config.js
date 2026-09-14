@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: "false",
+  darkMode: "class",
   content: {
     relative: true,
     files: [
@@ -28,7 +28,8 @@ export default {
         "historical-msg-system": "rgba(255, 255, 255, 0.05);",
         "historical-msg-user": "#2C2F35",
         outline: "#4E5153",
-        "primary-button": "#46C8FF",
+        "primary-button": "var(--theme-button-primary)",
+        "cta-button": "var(--theme-button-cta)",
         secondary: "#2C2F36",
         "dark-input": "#18181B",
         "mobile-onboarding": "#2C2F35",
@@ -36,7 +37,123 @@ export default {
         "dark-text": "#222628",
         description: "#D2D5DB",
         "x-button": "#9CA3AF",
-        darker: "#F4F4F4"
+        royalblue: "#065986",
+        purple: "#4A1FB8",
+        magenta: "#9E165F",
+        danger: "#F04438",
+        error: "#B42318",
+        warn: "#854708",
+        success: "#05603A",
+        darker: "#F4F4F4",
+        teal: "#0BA5EC",
+
+        // Generic theme colors
+        theme: {
+          bg: {
+            primary: 'var(--theme-bg-primary)',
+            secondary: 'var(--theme-bg-secondary)',
+            sidebar: 'var(--theme-bg-sidebar)',
+            container: 'var(--theme-bg-container)',
+            chat: 'var(--theme-bg-chat)',
+            "chat-input": 'var(--theme-bg-chat-input)',
+            "popup-menu": 'var(--theme-popup-menu-bg)',
+          },
+          text: {
+            primary: 'var(--theme-text-primary)',
+            secondary: 'var(--theme-text-secondary)',
+            placeholder: 'var(--theme-placeholder)',
+          },
+          sidebar: {
+            item: {
+              default: 'var(--theme-sidebar-item-default)',
+              selected: 'var(--theme-sidebar-item-selected)',
+              hover: 'var(--theme-sidebar-item-hover)',
+            },
+            subitem: {
+              default: 'var(--theme-sidebar-subitem-default)',
+              selected: 'var(--theme-sidebar-subitem-selected)',
+              hover: 'var(--theme-sidebar-subitem-hover)',
+            },
+            footer: {
+              icon: 'var(--theme-sidebar-footer-icon)',
+              'icon-hover': 'var(--theme-sidebar-footer-icon-hover)',
+            },
+            border: 'var(--theme-sidebar-border)',
+          },
+          "chat-input": {
+            border: 'var(--theme-chat-input-border)',
+          },
+          "action-menu": {
+            bg: 'var(--theme-action-menu-bg)',
+            "item-hover": 'var(--theme-action-menu-item-hover)',
+          },
+          settings: {
+            input: {
+              bg: 'var(--theme-settings-input-bg)',
+              active: 'var(--theme-settings-input-active)',
+              placeholder: 'var(--theme-settings-input-placeholder)',
+              text: 'var(--theme-settings-input-text)',
+            }
+          },
+          modal: {
+            border: 'var(--theme-modal-border)',
+          },
+          "file-picker": {
+            hover: 'var(--theme-file-picker-hover)',
+          },
+          attachment: {
+            bg: 'var(--theme-attachment-bg)',
+            'error-bg': 'var(--theme-attachment-error-bg)',
+            'success-bg': 'var(--theme-attachment-success-bg)',
+            text: 'var(--theme-attachment-text)',
+            'text-secondary': 'var(--theme-attachment-text-secondary)',
+            'icon': 'var(--theme-attachment-icon)',
+            'icon-spinner': 'var(--theme-attachment-icon-spinner)',
+            'icon-spinner-bg': 'var(--theme-attachment-icon-spinner-bg)',
+          },
+          home: {
+            text: 'var(--theme-home-text)',
+            "text-secondary": 'var(--theme-home-text-secondary)',
+            "bg-card": 'var(--theme-home-bg-card)',
+            "bg-button": 'var(--theme-home-bg-button)',
+            border: 'var(--theme-home-border)',
+            "button-primary": 'var(--theme-home-button-primary)',
+            "button-primary-hover": 'var(--theme-home-button-primary-hover)',
+            "button-secondary": 'var(--theme-home-button-secondary)',
+            "button-secondary-hover": 'var(--theme-home-button-secondary-hover)',
+            "button-secondary-text": 'var(--theme-home-button-secondary-text)',
+            "button-secondary-hover-text": 'var(--theme-home-button-secondary-hover-text)',
+            "button-secondary-border": 'var(--theme-home-button-secondary-border)',
+            "button-secondary-border-hover": 'var(--theme-home-button-secondary-border-hover)',
+            "update-card-bg": 'var(--theme-home-update-card-bg)',
+            "update-card-hover": 'var(--theme-home-update-card-hover)',
+            "update-source": 'var(--theme-home-update-source)',
+          },
+          checklist: {
+            "item-bg": 'var(--theme-checklist-item-bg)',
+            "item-bg-hover": 'var(--theme-checklist-item-bg-hover)',
+            "item-text": 'var(--theme-checklist-item-text)',
+            "item-completed-bg": 'var(--theme-checklist-item-completed-bg)',
+            "item-completed-text": 'var(--theme-checklist-item-completed-text)',
+            "item-hover": 'var(--theme-checklist-item-hover)',
+            "checkbox-border": 'var(--theme-checklist-checkbox-border)',
+            "checkbox-fill": 'var(--theme-checklist-checkbox-fill)',
+            "checkbox-text": 'var(--theme-checklist-checkbox-text)',
+            "button-border": 'var(--theme-checklist-button-border)',
+            "button-text": 'var(--theme-checklist-button-text)',
+            "button-hover-bg": 'var(--theme-checklist-button-hover-bg)',
+            "button-hover-border": 'var(--theme-checklist-button-hover-border)',
+          },
+          button: {
+            text: 'var(--theme-button-text)',
+            'code-hover-text': 'var(--theme-button-code-hover-text)',
+            'code-hover-bg': 'var(--theme-button-code-hover-bg)',
+            'disable-hover-text': 'var(--theme-button-disable-hover-text)',
+            'disable-hover-bg': 'var(--theme-button-disable-hover-bg)',
+            'delete-hover-text': 'var(--theme-button-delete-hover-text)',
+            'delete-hover-bg': 'var(--theme-button-delete-hover-bg)',
+          },
+        },
       },
       backgroundImage: {
         "preference-gradient":
@@ -79,7 +196,12 @@ export default {
         ]
       },
       animation: {
-        sweep: "sweep 0.5s ease-in-out"
+        sweep: "sweep 0.5s ease-in-out",
+        "pulse-glow": "pulse-glow 1.5s infinite",
+        'fade-in': 'fade-in 0.3s ease-out',
+        'slide-up': 'slide-up 0.4s ease-out forwards',
+        'bounce-subtle': 'bounce-subtle 2s ease-in-out infinite',
+        shimmer: 'shimmer 3s linear infinite'
       },
       keyframes: {
         sweep: {
@@ -93,8 +215,50 @@ export default {
         fadeOut: {
           "0%": { opacity: 1 },
           "100%": { opacity: 0 }
+        },
+        "pulse-glow": {
+          "0%": {
+            opacity: 1,
+            transform: "scale(1)",
+            boxShadow: "0 0 0 rgba(255, 255, 255, 0.0)",
+            backgroundColor: "rgba(255, 255, 255, 0.0)"
+          },
+          "50%": {
+            opacity: 1,
+            transform: "scale(1.1)",
+            boxShadow: "0 0 15px rgba(255, 255, 255, 0.2)",
+            backgroundColor: "rgba(255, 255, 255, 0.1)"
+          },
+          "100%": {
+            opacity: 1,
+            transform: "scale(1)",
+            boxShadow: "0 0 0 rgba(255, 255, 255, 0.0)",
+            backgroundColor: "rgba(255, 255, 255, 0.0)"
+          }
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' }
+        },
+        'slide-up': {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' }
+        },
+        'bounce-subtle': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-2px)' }
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '200% 0' },
+          '100%': { backgroundPosition: '-200% 0' }
         }
       }
+    }
+  },
+  variants: {
+    extend: {
+      backgroundColor: ['light'],
+      textColor: ['light'],
     }
   },
   // Required for rechart styles to show since they can be rendered dynamically and will be tree-shaken if not safe-listed.
@@ -127,5 +291,39 @@ export default {
         /^(fill-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|100|200|300|400|500|600|700|800|900|950))$/
     }
   ],
-  plugins: []
+  plugins: [
+    function ({ addVariant }) {
+      addVariant('light', '.light &') // Add the `light:` variant
+      addVariant('pwa', '.pwa &') // Add the `pwa:` variant
+    },
+    // The `animate-in`/`animate-out` enter+exit utilities from `tailwindcss-animate`,
+    // reproduced for the subset of modifiers we use so components copied from
+    // shadcn-based libraries keep their original class strings.
+    function ({ addBase, addUtilities }) {
+      addBase({
+        '@keyframes enter': {
+          from: {
+            opacity: 'var(--tw-enter-opacity, 1)',
+            transform:
+              'translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)'
+          }
+        },
+        '@keyframes exit': {
+          to: {
+            opacity: 'var(--tw-exit-opacity, 1)',
+            transform:
+              'translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)'
+          }
+        }
+      })
+      addUtilities({
+        '.animate-in': { animationName: 'enter', animationDuration: '150ms', animationFillMode: 'both' },
+        '.animate-out': { animationName: 'exit', animationDuration: '150ms', animationFillMode: 'both' },
+        '.fade-in-0': { '--tw-enter-opacity': '0' },
+        '.fade-out-0': { '--tw-exit-opacity': '0' },
+        '.slide-in-from-top-2': { '--tw-enter-translate-y': '-0.5rem' },
+        '.slide-out-to-top-2': { '--tw-exit-translate-y': '-0.5rem' }
+      })
+    }
+  ]
 }

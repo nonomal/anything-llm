@@ -29,58 +29,68 @@ class LocalWhisper {
     console.log(`\x1b[32m[LocalWhisper]\x1b[0m ${text}`, ...args);
   }
 
+  #validateAudioFile(wavFile) {
+    const sampleRate = wavFile.fmt.sampleRate;
+    const duration = wavFile.data.samples / sampleRate;
+
+    // Most speech recognition systems expect minimum 8kHz
+    // But we'll set it lower to be safe
+    if (sampleRate < 4000) {
+      // 4kHz minimum
+      throw new Error(
+        "Audio file sample rate is too low for accurate transcription. Minimum required is 4kHz."
+      );
+    }
+
+    // Typical audio file duration limits
+    const MAX_DURATION_SECONDS = 4 * 60 * 60; // 4 hours
+    if (duration > MAX_DURATION_SECONDS) {
+      throw new Error("Audio file duration exceeds maximum limit of 4 hours.");
+    }
+
+    // Check final sample count after upsampling to prevent memory issues
+    const targetSampleRate = 16000;
+    const upsampledSamples = duration * targetSampleRate;
+    const MAX_SAMPLES = 230_400_000; // ~4 hours at 16kHz
+
+    if (upsampledSamples > MAX_SAMPLES) {
+      throw new Error("Audio file exceeds maximum allowed length.");
+    }
+
+    return true;
+  }
+
   async #convertToWavAudioData(sourcePath) {
     try {
       let buffer;
       const wavefile = require("wavefile");
-      const ffmpeg = require("fluent-ffmpeg");
+      const { FFMPEGWrapper } = require("./ffmpeg");
+      const ffmpeg = new FFMPEGWrapper();
       const outFolder = path.resolve(__dirname, `../../storage/tmp`);
       if (!fs.existsSync(outFolder))
         fs.mkdirSync(outFolder, { recursive: true });
 
-      const fileExtension = path.extname(sourcePath).toLowerCase();
-      if (fileExtension !== ".wav") {
-        this.#log(
-          `File conversion required! ${fileExtension} file detected - converting to .wav`
+      const outputFile = path.resolve(outFolder, `${v4()}.wav`);
+      const success = await ffmpeg.convertAudioToWav(sourcePath, outputFile);
+      if (!success)
+        throw new Error(
+          "[Conversion Failed]: Could not convert file to .wav format!"
         );
-        const outputFile = path.resolve(outFolder, `${v4()}.wav`);
-        const convert = new Promise((resolve) => {
-          ffmpeg(sourcePath)
-            .toFormat("wav")
-            .on("error", (error) => {
-              this.#log(`Conversion Error! ${error.message}`);
-              resolve(false);
-            })
-            .on("progress", (progress) =>
-              this.#log(
-                `Conversion Processing! ${progress.targetSize}KB converted`
-              )
-            )
-            .on("end", () => {
-              this.#log(`Conversion Complete! File converted to .wav!`);
-              resolve(true);
-            })
-            .save(outputFile);
-        });
-        const success = await convert;
-        if (!success)
-          throw new Error(
-            "[Conversion Failed]: Could not convert file to .wav format!"
-          );
 
-        const chunks = [];
-        const stream = fs.createReadStream(outputFile);
-        for await (let chunk of stream) chunks.push(chunk);
-        buffer = Buffer.concat(chunks);
-        fs.rmSync(outputFile);
-      } else {
-        const chunks = [];
-        const stream = fs.createReadStream(sourcePath);
-        for await (let chunk of stream) chunks.push(chunk);
-        buffer = Buffer.concat(chunks);
-      }
+      buffer = fs.readFileSync(outputFile);
+      fs.rmSync(outputFile);
 
       const wavFile = new wavefile.WaveFile(buffer);
+      try {
+        this.#validateAudioFile(wavFile);
+      } catch (error) {
+        this.#log(`Audio validation failed: ${error.message}`);
+        throw new Error(`Invalid audio file: ${error.message}`);
+      }
+
+      // Although we use ffmpeg to convert to the correct format (16k hz 32f),
+      // different versions of ffmpeg produce different results based on the
+      // environment. To ensure consistency, we convert to the correct format again.
       wavFile.toBitDepth("32f");
       wavFile.toSampleRate(16000);
 
@@ -115,9 +125,9 @@ class LocalWhisper {
     try {
       // Convert ESM to CommonJS via import so we can load this library.
       const pipeline = (...args) =>
-        import("@xenova/transformers").then(({ pipeline }) =>
-          pipeline(...args)
-        );
+        import("@xenova/transformers").then(({ pipeline }) => {
+          return pipeline(...args);
+        });
       return await pipeline("automatic-speech-recognition", this.model, {
         cache_dir: this.cacheDir,
         ...(!fs.existsSync(this.modelPath)
@@ -126,7 +136,7 @@ class LocalWhisper {
               progress_callback: (data) => {
                 if (!data.hasOwnProperty("progress")) return;
                 console.log(
-                  `\x1b[34m[Embedding - Downloading Model Files]\x1b[0m ${
+                  `\x1b[34m[ONNXWhisper - Downloading Model Files]\x1b[0m ${
                     data.file
                   } ${~~data?.progress}%`
                 );
@@ -135,16 +145,22 @@ class LocalWhisper {
           : {}),
       });
     } catch (error) {
-      this.#log("Failed to load the native whisper model:", error);
-      throw error;
+      let errMsg = error.message;
+      if (errMsg.includes("Could not locate file")) {
+        errMsg =
+          "The native whisper model failed to download from the huggingface.co CDN. Your internet connection may be unstable or blocked by Huggingface.co - you will need to download the model manually and place it in the storage/models folder to use local Whisper transcription.";
+      }
+
+      this.#log(
+        `Failed to load the native whisper model: ${errMsg}`,
+        error.stack
+      );
+      throw new Error(errMsg);
     }
   }
 
   async processFile(fullFilePath, filename) {
     try {
-      const transcriberPromise = new Promise((resolve) =>
-        this.client().then((client) => resolve(client))
-      );
       const audioDataPromise = new Promise((resolve) =>
         this.#convertToWavAudioData(fullFilePath).then((audioData) =>
           resolve(audioData)
@@ -152,7 +168,7 @@ class LocalWhisper {
       );
       const [audioData, transcriber] = await Promise.all([
         audioDataPromise,
-        transcriberPromise,
+        this.client(),
       ]);
 
       if (!audioData) {

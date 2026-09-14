@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: | 
-        Use this template to file a bug report for AnythingLLM. Please be as descriptive as possible to allow everyone to replicate and solve your issue. Want help contributing a PR? Use our repo chatbot by OnboardAI! https://learnthisrepo.com/anythingllm"
+        Use this template to file a bug report for AnythingLLM. Please be as descriptive as possible to allow everyone to replicate and solve your issue.
   - type: dropdown
     id: runtime
     attributes:
@@ -38,5 +38,23 @@ body:
       description: |
         Let us know how to reproduce the bug and we may be able to fix it more
         quickly. This is not required, but it is helpful.
+    validations:
+      required: false
+
+  - type: textarea
+    id: llm-provider
+    attributes:
+      label: LLM Provider & Model (if applicable)
+      description: What LLM provider and model are you using? (e.g., OpenAI GPT-4, Anthropic, Ollama, etc.)
+      placeholder: e.g., Ollama / qwen2.5-coder-32b-instruct
+    validations:
+      required: false
+
+  - type: textarea
+    id: embedder-provider
+    attributes:
+      label: Embedder Provider & Model (if applicable)
+      description: What embedding provider and model are you using? (e.g., OpenAI text-embedding-ada-002, Lemonade, etc.)
+      placeholder: e.g., Lemonade / nomic-embed-text-v1-GGUF
     validations:
       required: false

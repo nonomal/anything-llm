@@ -1,7 +1,20 @@
+const { Prisma } = require("@prisma/client");
 const prisma = require("../utils/prisma");
 const { EventLogs } = require("./eventLogs");
 
+/**
+ * @typedef {Object} User
+ * @property {number} id
+ * @property {string} username
+ * @property {string} password
+ * @property {string} pfpFilename
+ * @property {string} role
+ * @property {boolean} suspended
+ * @property {number|null} dailyMessageLimit
+ */
+
 const User = {
+  usernameRegex: new RegExp(/^[a-z][a-z0-9._@-]*$/),
   writable: [
     // Used for generic updates so we can validate keys in request body
     "username",
@@ -9,15 +22,28 @@ const User = {
     "pfpFilename",
     "role",
     "suspended",
+    "dailyMessageLimit",
+    "bio",
   ],
   validations: {
+    /**
+     * Unix-style username regex:
+     * - Must start with a lowercase letter
+     * - Can contain lowercase letters, digits, underscores, hyphens, @ signs, and periods
+     * - 2-64 characters long
+     */
     username: (newValue = "") => {
       try {
-        if (String(newValue).length > 100)
-          throw new Error("Username cannot be longer than 100 characters");
-        if (String(newValue).length < 2)
+        const username = String(newValue);
+        if (username.length > 64)
+          throw new Error("Username cannot be longer than 64 characters");
+        if (username.length < 2)
           throw new Error("Username must be at least 2 characters");
-        return String(newValue);
+        if (!User.usernameRegex.test(username))
+          throw new Error(
+            "Username must start with a lowercase letter and only contain lowercase letters, numbers, underscores, hyphens, and periods"
+          );
+        return username;
       } catch (e) {
         throw new Error(e.message);
       }
@@ -31,46 +57,88 @@ const User = {
       }
       return String(role);
     },
+    dailyMessageLimit: (dailyMessageLimit = null) => {
+      if (dailyMessageLimit === null) return null;
+      const limit = Number(dailyMessageLimit);
+      if (isNaN(limit) || limit < 1) {
+        throw new Error(
+          "Daily message limit must be null or a number greater than or equal to 1"
+        );
+      }
+      return limit;
+    },
+    bio: (bio = "") => {
+      if (!bio || typeof bio !== "string") return "";
+      if (bio.length > 1000)
+        throw new Error("Bio cannot be longer than 1,000 characters");
+      return String(bio);
+    },
   },
-
   // validations for the above writable fields.
   castColumnValue: function (key, value) {
     switch (key) {
       case "suspended":
         return Number(Boolean(value));
+      case "dailyMessageLimit":
+        return value === null ? null : Number(value);
       default:
         return String(value);
     }
   },
 
   filterFields: function (user = {}) {
-    const { password, ...rest } = user;
+    const {
+      password: _password,
+      web_push_subscription_config: _web_push_subscription_config,
+      ...rest
+    } = user;
     return { ...rest };
   },
+  _identifyErrorAndFormatMessage: function (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // P2002 is the unique constraint violation error code
+      if (error.code === "P2002") {
+        const target = error.meta?.target;
+        return `A user with that ${target?.join(", ")} already exists`;
+      }
+    }
+    return error.message;
+  },
 
-  create: async function ({ username, password, role = "default" }) {
+  create: async function ({
+    username,
+    password,
+    role = "default",
+    dailyMessageLimit = null,
+    bio = "",
+  }) {
     const passwordCheck = this.checkPasswordComplexity(password);
     if (!passwordCheck.checkedOK) {
       return { user: null, error: passwordCheck.error };
     }
 
     try {
-      const bcrypt = require("bcrypt");
+      // Validate username format (validation function handles all checks)
+      const validatedUsername = this.validations.username(username);
+
+      const bcrypt = require("bcryptjs");
       const hashedPassword = bcrypt.hashSync(password, 10);
       const user = await prisma.users.create({
         data: {
-          username: this.validations.username(username),
+          username: validatedUsername,
           password: hashedPassword,
           role: this.validations.role(role),
+          bio: this.validations.bio(bio),
+          dailyMessageLimit:
+            this.validations.dailyMessageLimit(dailyMessageLimit),
         },
       });
       return { user: this.filterFields(user), error: null };
     } catch (error) {
       console.error("FAILED TO CREATE USER.", error.message);
-      return { user: null, error: error.message };
+      return { user: null, error: this._identifyErrorAndFormatMessage(error) };
     }
   },
-
   // Log the changes to a user object, but omit sensitive fields
   // that are not meant to be logged.
   loggedChanges: function (updates, prev = {}) {
@@ -93,6 +161,13 @@ const User = {
         where: { id: parseInt(userId) },
       });
       if (!currentUser) return { success: false, error: "User not found" };
+
+      // We previously had more lenient username validation, but now with more strict validation
+      // we dont want to break existing users by changing non-username fields.
+      // If they are not explictly changing the username, do not attempt to validate it.
+      if (updates.hasOwnProperty("username")) {
+        if (updates.username === currentUser.username) delete updates.username;
+      }
 
       // Removes non-writable fields for generic updates
       // and force-casts to the proper type;
@@ -119,7 +194,7 @@ const User = {
         if (!passwordCheck.checkedOK) {
           return { success: false, error: passwordCheck.error };
         }
-        const bcrypt = require("bcrypt");
+        const bcrypt = require("bcryptjs");
         updates.password = bcrypt.hashSync(updates.password, 10);
       }
 
@@ -138,14 +213,22 @@ const User = {
       );
       return { success: true, error: null };
     } catch (error) {
-      console.error(error.message);
-      return { success: false, error: error.message };
+      console.error("FAILED TO UPDATE USER.", error.message);
+      return {
+        success: false,
+        error: this._identifyErrorAndFormatMessage(error),
+      };
     }
   },
 
-  // Explicit direct update of user object.
-  // Only use this method when directly setting a key value
-  // that takes no user input for the keys being modified.
+  /**
+   * Explicit direct update of user object.
+   * Only use this method when directly setting a key value
+   * that takes no user input for the keys being modified.
+   * @param {number} id - The id of the user to update.
+   * @param {Object} data - The data to update the user with.
+   * @returns {Promise<Object>} The updated user object.
+   */
   _update: async function (id = null, data = {}) {
     if (!id) throw new Error("No user id provided for update");
 
@@ -161,6 +244,31 @@ const User = {
     }
   },
 
+  /**
+   * Get all users that match the given clause without filtering the fields.
+   * Internal use only - do not use this method for user-input flows
+   * @param {Object} clause - The clause to filter the users by.
+   * @param {number|null} limit - The maximum number of users to return.
+   * @returns {Promise<Array<User>>} The users that match the given clause.
+   */
+  _where: async function (clause = {}, limit = null) {
+    try {
+      const users = await prisma.users.findMany({
+        where: clause,
+        ...(limit !== null ? { take: limit } : {}),
+      });
+      return users;
+    } catch (error) {
+      console.error(error.message);
+      return [];
+    }
+  },
+
+  /**
+   * Returns a user object based on the clause provided.
+   * @param {Object} clause - The clause to use to find the user.
+   * @returns {Promise<import("@prisma/client").users|null>} The user object or null if not found.
+   */
   get: async function (clause = {}) {
     try {
       const user = await prisma.users.findFirst({ where: clause });
@@ -170,7 +278,6 @@ const User = {
       return null;
     }
   },
-
   // Returns user object with all fields
   _get: async function (clause = {}) {
     try {
@@ -245,6 +352,29 @@ const User = {
     }
 
     return { checkedOK: true, error: "No error." };
+  },
+
+  /**
+   * Check if a user can send a chat based on their daily message limit.
+   * This limit is system wide and not per workspace and only applies to
+   * multi-user mode AND non-admin users.
+   * @param {User} user The user object record.
+   * @returns {Promise<boolean>} True if the user can send a chat, false otherwise.
+   */
+  canSendChat: async function (user) {
+    const { ROLES } = require("../utils/middleware/multiUserProtected");
+    if (!user || user.dailyMessageLimit === null || user.role === ROLES.admin)
+      return true;
+
+    const { WorkspaceChats } = require("./workspaceChats");
+    const currentChatCount = await WorkspaceChats.count({
+      user_id: user.id,
+      createdAt: {
+        gte: new Date(new Date() - 24 * 60 * 60 * 1000), // 24 hours
+      },
+    });
+
+    return currentChatCount < user.dailyMessageLimit;
   },
 };
 

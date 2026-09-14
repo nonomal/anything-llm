@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
-const { getVectorDbClass, getLLMProvider } = require("../helpers");
+const { getVectorDbClass, resolveProviderConnector } = require("../helpers");
+const { addChatCostToMetrics } = require("../helpers/modelPricing");
 const { chatPrompt, sourceIdentifier } = require("./index");
 const { EmbedChats } = require("../../models/embedChats");
 const {
@@ -7,6 +8,7 @@ const {
   writeResponseChunk,
 } = require("../helpers/chat/responses");
 const { DocumentManager } = require("../DocumentManager");
+const { abortConnectorOnClientDisconnect } = require("../helpers/abortSignals");
 
 async function streamChatWithForEmbed(
   response,
@@ -16,25 +18,52 @@ async function streamChatWithForEmbed(
   message,
   /** @type {String} */
   sessionId,
-  { promptOverride, modelOverride, temperatureOverride }
+  { promptOverride, modelOverride, temperatureOverride, username }
 ) {
-  const chatMode = embed.chat_mode;
+  // Automatic mode is NOT valid for embeds, so we default to chat mode.
+  let chatMode = embed.chat_mode ?? "chat";
+  if (chatMode === "automatic") chatMode = "chat";
+
   const chatModel = embed.allow_model_override ? modelOverride : null;
 
   // If there are overrides in request & they are permitted, override the default workspace ref information.
-  if (embed.allow_prompt_override)
+  if (embed.allow_prompt_override && typeof promptOverride === "string")
     embed.workspace.openAiPrompt = promptOverride;
-  if (embed.allow_temperature_override)
-    embed.workspace.openAiTemp = parseFloat(temperatureOverride);
+  const temperatureValue = parseFloat(temperatureOverride);
+  if (embed.allow_temperature_override && !Number.isNaN(temperatureValue))
+    embed.workspace.openAiTemp = temperatureValue;
 
   const uuid = uuidv4();
-  const LLMConnector = getLLMProvider({
-    provider: embed?.workspace?.chatProvider,
-    model: chatModel ?? embed.workspace?.chatModel,
+  const {
+    connector: LLMConnector,
+    routingMetadata,
+    prefetchedContext,
+    error: routerError,
+  } = await resolveLLMConnectorForEmbed({
+    embed,
+    chatModel,
+    message,
+    sessionId,
   });
+
+  if (routerError) {
+    return writeResponseChunk(response, {
+      id: uuid,
+      type: "abort",
+      textResponse: null,
+      sources: [],
+      close: true,
+      error: routerError,
+    });
+  }
+
+  // Stopping the generation (or closing the tab) should stop the provider
+  // generating too, not just stop us reading the response.
+  abortConnectorOnClientDisconnect(response, LLMConnector);
+
   const VectorDb = getVectorDbClass();
 
-  const messageLimit = 20;
+  const messageLimit = embed.message_limit ?? 20;
   const hasVectorizedSpace = await VectorDb.hasNamespace(embed.workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(embed.workspace.slug);
 
@@ -54,35 +83,33 @@ async function streamChatWithForEmbed(
   }
 
   let completeText;
+  let metrics = {};
   let contextTexts = [];
   let sources = [];
   let pinnedDocIdentifiers = [];
-  const { rawHistory, chatHistory } = await recentEmbedChatHistory(
-    sessionId,
-    embed,
-    messageLimit,
-    chatMode
-  );
+  const {
+    rawHistory,
+    chatHistory,
+    pinnedDocs: prefetchedPinnedDocs,
+  } = prefetchedContext ??
+  (await recentEmbedChatHistory(sessionId, embed, messageLimit));
 
-  // See stream.js comment for more information on this implementation.
-  await new DocumentManager({
-    workspace: embed.workspace,
-    maxTokens: LLMConnector.promptWindowLimit(),
-  })
-    .pinnedDocs()
-    .then((pinnedDocs) => {
-      pinnedDocs.forEach((doc) => {
-        const { pageContent, ...metadata } = doc;
-        pinnedDocIdentifiers.push(sourceIdentifier(doc));
-        contextTexts.push(doc.pageContent);
-        sources.push({
-          text:
-            pageContent.slice(0, 1_000) +
-            "...continued on in source document...",
-          ...metadata,
-        });
-      });
+  const pinnedDocs =
+    prefetchedPinnedDocs ??
+    (await new DocumentManager({
+      workspace: embed.workspace,
+      maxTokens: LLMConnector.promptWindowLimit(),
+    }).pinnedDocs());
+  pinnedDocs.forEach((doc) => {
+    const { pageContent, ...metadata } = doc;
+    pinnedDocIdentifiers.push(sourceIdentifier(doc));
+    contextTexts.push(doc.pageContent);
+    sources.push({
+      text:
+        pageContent.slice(0, 1_000) + "...continued on in source document...",
+      ...metadata,
     });
+  });
 
   const vectorSearchResults =
     embeddingsCount !== 0
@@ -93,6 +120,7 @@ async function streamChatWithForEmbed(
           similarityThreshold: embed.workspace?.similarityThreshold,
           topN: embed.workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
+          rerank: embed.workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
@@ -113,16 +141,27 @@ async function streamChatWithForEmbed(
     return;
   }
 
-  contextTexts = [...contextTexts, ...vectorSearchResults.contextTexts];
+  const { fillSourceWindow } = require("../helpers/chat");
+  const filledSources = fillSourceWindow({
+    nDocs: embed.workspace?.topN || 4,
+    searchResults: vectorSearchResults.sources,
+    history: rawHistory,
+    filterIdentifiers: pinnedDocIdentifiers,
+  });
+
+  // Why does contextTexts get all the info, but sources only get current search?
+  // This is to give the ability of the LLM to "comprehend" a contextual response without
+  // populating the Citations under a response with documents the user "thinks" are irrelevant
+  // due to how we manage backfilling of the context to keep chats with the LLM more correct in responses.
+  // If a past citation was used to answer the question - that is visible in the history so it logically makes sense
+  // and does not appear to the user that a new response used information that is otherwise irrelevant for a given prompt.
+  // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
+  contextTexts = [...contextTexts, ...filledSources.contextTexts];
   sources = [...sources, ...vectorSearchResults.sources];
 
-  // If in query mode and no sources are found, do not
+  // If in query mode and no sources are found in current search or backfilled from history, do not
   // let the LLM try to hallucinate a response or use general knowledge
-  if (
-    chatMode === "query" &&
-    sources.length === 0 &&
-    pinnedDocIdentifiers.length === 0
-  ) {
+  if (chatMode === "query" && contextTexts.length === 0) {
     writeResponseChunk(response, {
       id: uuid,
       type: "textResponse",
@@ -140,7 +179,11 @@ async function streamChatWithForEmbed(
   // and build system messages based on inputs and history.
   const messages = await LLMConnector.compressMessages(
     {
-      systemPrompt: chatPrompt(embed.workspace),
+      // Embed visitors are anonymous - never pass request-supplied identity
+      // into chatPrompt and never inject stored memories into the prompt.
+      systemPrompt: await chatPrompt(embed.workspace, null, {
+        skipMemories: true,
+      }),
       userPrompt: message,
       contextTexts,
       chatHistory,
@@ -154,8 +197,15 @@ async function streamChatWithForEmbed(
     console.log(
       `\x1b[31m[STREAMING DISABLED]\x1b[0m Streaming is not available for ${LLMConnector.constructor.name}. Will use regular chat method.`
     );
-    completeText = await LLMConnector.getChatCompletion(messages, {
-      temperature: embed.workspace?.openAiTemp ?? LLMConnector.defaultTemp,
+    const { textResponse, metrics: performanceMetrics } =
+      await LLMConnector.getChatCompletion(messages, {
+        temperature: embed.workspace?.openAiTemp ?? LLMConnector.defaultTemp,
+      });
+    completeText = textResponse;
+    metrics = addChatCostToMetrics(performanceMetrics, {
+      routingMetadata,
+      workspace: embed.workspace,
+      connector: LLMConnector,
     });
     writeResponseChunk(response, {
       uuid,
@@ -173,35 +223,100 @@ async function streamChatWithForEmbed(
       uuid,
       sources: [],
     });
+    metrics = addChatCostToMetrics(stream.metrics, {
+      routingMetadata,
+      workspace: embed.workspace,
+      connector: LLMConnector,
+    });
   }
 
   await EmbedChats.new({
     embedId: embed.id,
     prompt: message,
-    response: { text: completeText, type: chatMode },
+    response: { text: completeText, type: chatMode, sources, metrics },
     connection_information: response.locals.connection
-      ? { ...response.locals.connection }
-      : {},
+      ? {
+          ...response.locals.connection,
+          username: !!username ? String(username) : null,
+        }
+      : { username: !!username ? String(username) : null },
     sessionId,
   });
   return;
 }
 
-// On query we don't return message history. All other chat modes and when chatting
-// with no embeddings we return history.
-async function recentEmbedChatHistory(
-  sessionId,
-  embed,
-  messageLimit = 20,
-  chatMode = null
-) {
-  if (chatMode === "query") return { rawHistory: [], chatHistory: [] };
+/**
+ * @param {string} sessionId the session id of the user from embed widget
+ * @param {Object} embed the embed config object
+ * @param {Number} messageLimit the number of messages to return
+ * @returns {Promise<{rawHistory: import("@prisma/client").embed_chats[], chatHistory: {role: string, content: string, attachments?: Object[]}[]}>
+ */
+async function recentEmbedChatHistory(sessionId, embed, messageLimit = 20) {
   const rawHistory = (
     await EmbedChats.forEmbedByUser(embed.id, sessionId, messageLimit, {
       id: "desc",
     })
   ).reverse();
   return { rawHistory, chatHistory: convertToPromptHistory(rawHistory) };
+}
+
+/**
+ * Resolves the LLM connector for embed chats, either directly or via the model router.
+ * @returns {Promise<{ connector: Object, error: string|null }>}
+ */
+async function resolveLLMConnectorForEmbed({
+  embed,
+  chatModel,
+  message,
+  sessionId,
+}) {
+  // If a chat model is provided, use it to override the workspace chat model
+  // otherwise use the workspace chat model as we do everywhere else.
+  const workspace = chatModel
+    ? { ...embed?.workspace, chatModel }
+    : embed?.workspace;
+  try {
+    const messageLimit = workspace?.openAiHistory || 20;
+    const embedHistory = await recentEmbedChatHistory(
+      sessionId,
+      embed,
+      messageLimit
+    );
+    const embedMessageCount = await EmbedChats.count({
+      embed_id: embed.id,
+      session_id: sessionId,
+      include: true,
+    });
+
+    const { connector, routingMetadata, prefetchedContext } =
+      await resolveProviderConnector({
+        workspace,
+        prompt: message,
+        chatHistoryOverride: embedHistory,
+        // +1 to include the current in-flight message to ensure routing rules are evaluated against the real total.
+        messageCountOverride: embedMessageCount + 1,
+      });
+
+    return {
+      connector,
+      routingMetadata,
+      prefetchedContext: prefetchedContext
+        ? {
+            rawHistory: embedHistory.rawHistory,
+            chatHistory: embedHistory.chatHistory,
+            pinnedDocs: prefetchedContext.pinnedDocs,
+          }
+        : null,
+      error: null,
+    };
+  } catch (routerError) {
+    return {
+      connector: null,
+      routingMetadata: null,
+      prefetchedContext: null,
+      error: `Model router error: ${routerError.message}`,
+    };
+  }
 }
 
 module.exports = {

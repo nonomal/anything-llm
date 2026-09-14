@@ -5,10 +5,39 @@ const { storeVectorResult, cachedVectorInformation } = require("../../files");
 const { v4: uuidv4 } = require("uuid");
 const { toChunks, getEmbeddingEngineSelection } = require("../../helpers");
 const { sourceIdentifier } = require("../../chats");
+const { VectorDatabase } = require("../base");
 
-const AstraDB = {
-  name: "AstraDB",
-  connect: async function () {
+const sanitizeNamespace = (namespace) => {
+  // If namespace already starts with ns_, don't add it again
+  if (namespace.startsWith("ns_")) return namespace;
+
+  // Remove any invalid characters, ensure starts with letter
+  return `ns_${namespace.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+};
+
+// Add this helper method to check if collection exists more reliably
+const collectionExists = async function (client, namespace) {
+  try {
+    const collections = await AstraDB.allNamespaces(client);
+    if (collections) {
+      return collections.includes(namespace);
+    }
+  } catch (error) {
+    this.logger("collectionExists check error", error?.message || error);
+    return false; // Return false for any error to allow creation attempt
+  }
+};
+
+class AstraDB extends VectorDatabase {
+  constructor() {
+    super();
+  }
+
+  get name() {
+    return "AstraDB";
+  }
+
+  async connect() {
     if (process.env.VECTOR_DB !== "astra")
       throw new Error("AstraDB::Invalid ENV settings");
 
@@ -17,21 +46,24 @@ const AstraDB = {
       process?.env?.ASTRA_DB_ENDPOINT
     );
     return { client };
-  },
-  heartbeat: async function () {
+  }
+
+  async heartbeat() {
     return { heartbeat: Number(new Date()) };
-  },
+  }
+
   // Astra interface will return a valid collection object even if the collection
   // does not actually exist. So we run a simple check which will always throw
   // when the table truly does not exist. Faster than iterating all collections.
-  isRealCollection: async function (astraCollection = null) {
+  async isRealCollection(astraCollection = null) {
     if (!astraCollection) return false;
     return await astraCollection
       .countDocuments()
       .then(() => true)
       .catch(() => false);
-  },
-  totalVectors: async function () {
+  }
+
+  async totalVectors() {
     const { client } = await this.connect();
     const collectionNames = await this.allNamespaces(client);
     var totalVectors = 0;
@@ -41,19 +73,24 @@ const AstraDB = {
       totalVectors += count ? count : 0;
     }
     return totalVectors;
-  },
-  namespaceCount: async function (_namespace = null) {
+  }
+
+  async namespaceCount(_namespace = null) {
     const { client } = await this.connect();
     const namespace = await this.namespace(client, _namespace);
     return namespace?.vectorCount || 0;
-  },
-  namespace: async function (client, namespace = null) {
+  }
+
+  async namespace(client, namespace = null) {
     if (!namespace) throw new Error("No namespace value provided.");
-    const collection = await client.collection(namespace).catch(() => null);
+    const sanitizedNamespace = sanitizeNamespace(namespace);
+    const collection = await client
+      .collection(sanitizedNamespace)
+      .catch(() => null);
     if (!(await this.isRealCollection(collection))) return null;
 
     const count = await collection.countDocuments().catch((e) => {
-      console.error("Astra::namespaceExists", e.message);
+      this.logger("namespaceExists", e.message);
       return null;
     });
 
@@ -62,42 +99,62 @@ const AstraDB = {
       ...collection,
       vectorCount: typeof count === "number" ? count : 0,
     };
-  },
-  hasNamespace: async function (namespace = null) {
+  }
+
+  async hasNamespace(namespace = null) {
     if (!namespace) return false;
     const { client } = await this.connect();
     return await this.namespaceExists(client, namespace);
-  },
-  namespaceExists: async function (client, namespace = null) {
+  }
+
+  async namespaceExists(client, namespace = null) {
     if (!namespace) throw new Error("No namespace value provided.");
-    const collection = await client.collection(namespace);
+    const sanitizedNamespace = sanitizeNamespace(namespace);
+    const collection = await client.collection(sanitizedNamespace);
     return await this.isRealCollection(collection);
-  },
-  deleteVectorsInNamespace: async function (client, namespace = null) {
-    await client.dropCollection(namespace);
+  }
+
+  async deleteVectorsInNamespace(client, namespace = null) {
+    const sanitizedNamespace = sanitizeNamespace(namespace);
+    await client.dropCollection(sanitizedNamespace);
     return true;
-  },
+  }
+
   // AstraDB requires a dimension aspect for collection creation
   // we pass this in from the first chunk to infer the dimensions like other
   // providers do.
-  getOrCreateCollection: async function (client, namespace, dimensions = null) {
-    const isExists = await this.namespaceExists(client, namespace);
-    if (!isExists) {
-      if (!dimensions)
-        throw new Error(
-          `AstraDB:getOrCreateCollection Unable to infer vector dimension from input. Open an issue on Github for support.`
-        );
+  async getOrCreateCollection(client, namespace, dimensions = null) {
+    const sanitizedNamespace = sanitizeNamespace(namespace);
+    try {
+      const exists = await collectionExists(client, sanitizedNamespace);
 
-      await client.createCollection(namespace, {
-        vector: {
-          dimension: dimensions,
-          metric: "cosine",
-        },
-      });
+      if (!exists) {
+        if (!dimensions) {
+          throw new Error(
+            `AstraDB:getOrCreateCollection Unable to infer vector dimension from input. Open an issue on Github for support.`
+          );
+        }
+
+        // Create new collection
+        await client.createCollection(sanitizedNamespace, {
+          vector: {
+            dimension: dimensions,
+            metric: "cosine",
+          },
+        });
+
+        // Get the newly created collection
+        return await client.collection(sanitizedNamespace);
+      }
+
+      return await client.collection(sanitizedNamespace);
+    } catch (error) {
+      this.logger("getOrCreateCollection", error?.message || error);
+      throw error;
     }
-    return await client.collection(namespace);
-  },
-  addDocumentToNamespace: async function (
+  }
+
+  async addDocumentToNamespace(
     namespace,
     documentData = {},
     fullFilePath = null,
@@ -109,7 +166,7 @@ const AstraDB = {
       const { pageContent, docId, ...metadata } = documentData;
       if (!pageContent || pageContent.length == 0) return false;
 
-      console.log("Adding new vectorized document into namespace", namespace);
+      this.logger("Adding new vectorized document into namespace", namespace);
       if (!skipCache) {
         const cacheResult = await cachedVectorInformation(fullFilePath);
         if (cacheResult.exists) {
@@ -150,24 +207,25 @@ const AstraDB = {
 
       const EmbedderEngine = getEmbeddingEngineSelection();
       const textSplitter = new TextSplitter({
-        chunkSize: TextSplitter.determineMaxChunkSize(
-          await SystemSettings.getValueOrFallback({
-            label: "text_splitter_chunk_size",
-          }),
-          EmbedderEngine?.embeddingMaxChunkLength
+        chunkSize: Math.min(
+          7500,
+          TextSplitter.determineMaxChunkSize(
+            await SystemSettings.getValueOrFallback({
+              label: "text_splitter_chunk_size",
+            }),
+            EmbedderEngine?.embeddingMaxChunkLength
+          )
         ),
         chunkOverlap: await SystemSettings.getValueOrFallback(
           { label: "text_splitter_chunk_overlap" },
           20
         ),
-        chunkHeaderMeta: {
-          sourceDocument: metadata?.title,
-          published: metadata?.published || "unknown",
-        },
+        chunkHeaderMeta: TextSplitter.buildHeaderMeta(metadata),
+        chunkPrefix: EmbedderEngine?.embeddingPrefix,
       });
       const textChunks = await textSplitter.splitText(pageContent);
 
-      console.log("Chunks created from document:", textChunks.length);
+      this.logger("Snippets created from document:", textChunks.length);
       const documentVectors = [];
       const vectors = [];
       const vectorValues = await EmbedderEngine.embedChunks(textChunks);
@@ -203,7 +261,7 @@ const AstraDB = {
       if (vectors.length > 0) {
         const chunks = [];
 
-        console.log("Inserting vectorized chunks into Astra DB.");
+        this.logger("Inserting vectorized chunks into Astra DB.");
 
         // AstraDB has maximum upsert size of 20 records per-request so we have to use a lower chunk size here
         // in order to do the queries - this takes a lot more time than other providers but there
@@ -223,13 +281,15 @@ const AstraDB = {
       await DocumentVectors.bulkInsert(documentVectors);
       return { vectorized: true, error: null };
     } catch (e) {
-      console.error("addDocumentToNamespace", e.message);
+      this.logger("addDocumentToNamespace", e.message);
       return { vectorized: false, error: e.message };
     }
-  },
-  deleteDocumentFromNamespace: async function (namespace, docId) {
+  }
+
+  async deleteDocumentFromNamespace(namespace, docId) {
     const { DocumentVectors } = require("../../../models/vectors");
     const { client } = await this.connect();
+    namespace = sanitizeNamespace(namespace);
     if (!(await this.namespaceExists(client, namespace)))
       throw new Error(
         "Invalid namespace - has it been collected and populated yet?"
@@ -249,8 +309,9 @@ const AstraDB = {
     const indexes = knownDocuments.map((doc) => doc.id);
     await DocumentVectors.deleteIds(indexes);
     return true;
-  },
-  performSimilaritySearch: async function ({
+  }
+
+  async performSimilaritySearch({
     namespace = null,
     input = "",
     LLMConnector = null,
@@ -262,7 +323,10 @@ const AstraDB = {
       throw new Error("Invalid request to performSimilaritySearch.");
 
     const { client } = await this.connect();
-    if (!(await this.namespaceExists(client, namespace))) {
+    // Sanitize namespace before checking existence
+    const sanitizedNamespace = sanitizeNamespace(namespace);
+
+    if (!(await this.namespaceExists(client, sanitizedNamespace))) {
       return {
         contextTexts: [],
         sources: [],
@@ -272,14 +336,14 @@ const AstraDB = {
     }
 
     const queryVector = await LLMConnector.embedTextInput(input);
-    const { contextTexts, sourceDocuments } = await this.similarityResponse(
+    const { contextTexts, sourceDocuments } = await this.similarityResponse({
       client,
-      namespace,
+      namespace: sanitizedNamespace,
       queryVector,
       similarityThreshold,
       topN,
-      filterIdentifiers
-    );
+      filterIdentifiers,
+    });
 
     const sources = sourceDocuments.map((metadata, i) => {
       return { ...metadata, text: contextTexts[i] };
@@ -289,22 +353,24 @@ const AstraDB = {
       sources: this.curateSources(sources),
       message: false,
     };
-  },
-  similarityResponse: async function (
+  }
+
+  async similarityResponse({
     client,
     namespace,
     queryVector,
     similarityThreshold = 0.25,
     topN = 4,
-    filterIdentifiers = []
-  ) {
+    filterIdentifiers = [],
+  }) {
     const result = {
       contextTexts: [],
       sourceDocuments: [],
       scores: [],
     };
-
-    const collection = await client.collection(namespace);
+    // Namespace should already be sanitized, but let's be defensive
+    const sanitizedNamespace = sanitizeNamespace(namespace);
+    const collection = await client.collection(sanitizedNamespace);
     const responses = await collection
       .find(
         {},
@@ -319,18 +385,22 @@ const AstraDB = {
     responses.forEach((response) => {
       if (response.$similarity < similarityThreshold) return;
       if (filterIdentifiers.includes(sourceIdentifier(response.metadata))) {
-        console.log(
-          "AstraDB: A source was filtered from context as it's parent document is pinned."
+        this.logger(
+          "A source was filtered from context as it's parent document is pinned."
         );
         return;
       }
       result.contextTexts.push(response.metadata.text);
-      result.sourceDocuments.push(response);
+      result.sourceDocuments.push({
+        ...response.metadata,
+        score: response.$similarity,
+      });
       result.scores.push(response.$similarity);
     });
     return result;
-  },
-  allNamespaces: async function (client) {
+  }
+
+  async allNamespaces(client) {
     try {
       let header = new Headers();
       header.append("Token", client?.httpClient?.applicationToken);
@@ -352,11 +422,12 @@ const AstraDB = {
       const collections = resp ? JSON.parse(resp)?.status?.collections : [];
       return collections;
     } catch (e) {
-      console.error("Astra::AllNamespace", e);
+      this.logger("AllNamespace", e);
       return [];
     }
-  },
-  "namespace-stats": async function (reqBody = {}) {
+  }
+
+  async "namespace-stats"(reqBody = {}) {
     const { namespace = null } = reqBody;
     if (!namespace) throw new Error("namespace required");
     const { client } = await this.connect();
@@ -366,8 +437,9 @@ const AstraDB = {
     return stats
       ? stats
       : { message: "No stats were able to be fetched from DB for namespace" };
-  },
-  "delete-namespace": async function (reqBody = {}) {
+  }
+
+  async "delete-namespace"(reqBody = {}) {
     const { namespace = null } = reqBody;
     const { client } = await this.connect();
     if (!(await this.namespaceExists(client, namespace)))
@@ -380,8 +452,9 @@ const AstraDB = {
         details?.vectorCount || "all"
       } vectors.`,
     };
-  },
-  curateSources: function (sources = []) {
+  }
+
+  curateSources(sources = []) {
     const documents = [];
     for (const source of sources) {
       if (Object.keys(source).length > 0) {
@@ -395,7 +468,7 @@ const AstraDB = {
     }
 
     return documents;
-  },
-};
+  }
+}
 
 module.exports.AstraDB = AstraDB;

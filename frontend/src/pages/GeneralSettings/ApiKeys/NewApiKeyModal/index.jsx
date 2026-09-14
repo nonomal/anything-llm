@@ -1,12 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { X } from "@phosphor-icons/react";
+import { Copy, Check } from "@phosphor-icons/react";
 import Admin from "@/models/admin";
 import paths from "@/utils/paths";
 import { userFromStorage } from "@/utils/request";
 import System from "@/models/system";
+import { useTranslation } from "react-i18next";
+import {
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalPrimaryButton,
+  ModalSecondaryButton,
+  ModalInput,
+} from "@/components/lib/Modal";
 
-export default function NewApiKeyModal({ closeModal }) {
+export default function NewApiKeyModal({ closeModal, onSuccess }) {
+  const { t } = useTranslation();
   const [apiKey, setApiKey] = useState(null);
+  const [name, setName] = useState("");
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -16,15 +27,22 @@ export default function NewApiKeyModal({ closeModal }) {
     const user = userFromStorage();
     const Model = !!user ? Admin : System;
 
-    const { apiKey: newApiKey, error } = await Model.generateApiKey();
-    if (!!newApiKey) setApiKey(newApiKey);
+    const { apiKey: newApiKey, error } = await Model.generateApiKey({
+      name,
+    });
+    if (!!newApiKey) {
+      setApiKey(newApiKey);
+      onSuccess();
+    }
     setError(error);
   };
+
   const copyApiKey = () => {
     if (!apiKey) return false;
     window.navigator.clipboard.writeText(apiKey.secret);
     setCopied(true);
   };
+
   useEffect(() => {
     function resetStatus() {
       if (!copied) return false;
@@ -36,77 +54,78 @@ export default function NewApiKeyModal({ closeModal }) {
   }, [copied]);
 
   return (
-    <div className="relative w-[500px] max-w-2xl max-h-full">
-      <div className="relative bg-main-gradient rounded-lg shadow">
-        <div className="flex items-start justify-between p-4 border-b rounded-t border-gray-500/50">
-          <h3 className="text-xl font-semibold text-white">
-            Create new API key
-          </h3>
-          <button
-            onClick={closeModal}
-            type="button"
-            className="transition-all duration-300 text-gray-400 bg-transparent hover:border-white/60 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center bg-sidebar-button hover:bg-menu-item-selected-gradient hover:border-slate-100 hover:border-opacity-50 border-transparent border"
-            data-modal-hide="staticModal"
-          >
-            <X className="text-gray-300 text-lg" />
-          </button>
-        </div>
-        <form onSubmit={handleCreate}>
-          <div className="p-6 space-y-6 flex h-full w-full">
-            <div className="w-full flex flex-col gap-y-4">
-              {error && <p className="text-red-400 text-sm">Error: {error}</p>}
-              {apiKey && (
-                <input
-                  type="text"
-                  defaultValue={`${apiKey.secret}`}
-                  disabled={true}
-                  className="rounded-lg px-4 py-2 text-white bg-zinc-900 border border-gray-500/50"
+    <form onSubmit={handleCreate} className="flex flex-col gap-y-5">
+      <ModalHeader title={t("api.modal.title")} onClose={closeModal} />
+      <ModalBody>
+        {error && (
+          <p className="text-red-400 text-sm">
+            {t("api.messages.error", { error })}
+          </p>
+        )}
+        {!apiKey && (
+          <ModalInput
+            label={t("api.modal.name.label")}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("api.modal.name.placeholder")}
+            hint={t("api.modal.name.helper")}
+          />
+        )}
+        {apiKey && (
+          <div className="relative">
+            <input
+              type="text"
+              defaultValue={`${apiKey.secret}`}
+              disabled={true}
+              className="border-none bg-zinc-800 text-zinc-100 placeholder:text-zinc-400 light:bg-white light:text-slate-900 light:placeholder:text-slate-400 text-sm rounded-lg outline-none block w-full p-2.5 pr-10"
+            />
+            <button
+              type="button"
+              onClick={copyApiKey}
+              disabled={copied}
+              className="border-none absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md bg-transparent hover:bg-zinc-800 light:hover:bg-slate-100 transition-all duration-300"
+            >
+              {copied ? (
+                <Check size={20} className="text-green-400" weight="bold" />
+              ) : (
+                <Copy
+                  size={20}
+                  className="text-slate-50 light:text-slate-900"
+                  weight="bold"
                 />
               )}
-              <p className="text-white text-xs md:text-sm">
-                Once created the API key can be used to programmatically access
-                and configure this AnythingLLM instance.
-              </p>
-              <a
-                href={paths.apiDocs()}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-400 hover:underline"
-              >
-                Read the API documentation &rarr;
-              </a>
-            </div>
+            </button>
           </div>
-          <div className="flex w-full justify-between items-center p-6 space-x-2 border-t rounded-b border-gray-500/50">
-            {!apiKey ? (
-              <>
-                <button
-                  onClick={closeModal}
-                  type="button"
-                  className="px-4 py-2 rounded-lg text-white hover:bg-stone-900 transition-all duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="transition-all duration-300 border border-slate-200 px-4 py-2 rounded-lg text-white text-sm items-center flex gap-x-2 hover:bg-slate-200 hover:text-slate-800 focus:ring-gray-800"
-                >
-                  Create API key
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={copyApiKey}
-                type="button"
-                disabled={copied}
-                className="w-full transition-all duration-300 border border-slate-200 px-4 py-2 rounded-lg text-white text-sm items-center flex gap-x-2 hover:bg-slate-200 hover:text-slate-800 focus:ring-gray-800 text-center justify-center"
-              >
-                {copied ? "Copied API key" : "Copy API key"}
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-    </div>
+        )}
+        <p className="text-xs text-zinc-400 light:text-slate-600">
+          {t("api.modal.helper")}
+        </p>
+        <a
+          href={paths.apiDocs()}
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-400 hover:underline"
+        >
+          Read the API documentation &rarr;
+        </a>
+      </ModalBody>
+      <ModalFooter className={apiKey ? "justify-end" : undefined}>
+        {!apiKey ? (
+          <>
+            <ModalSecondaryButton onClick={closeModal} type="button">
+              {t("api.modal.cancel")}
+            </ModalSecondaryButton>
+            <ModalPrimaryButton type="submit">
+              {t("api.modal.create")}
+            </ModalPrimaryButton>
+          </>
+        ) : (
+          <ModalSecondaryButton onClick={closeModal} type="button">
+            {t("api.modal.close")}
+          </ModalSecondaryButton>
+        )}
+      </ModalFooter>
+    </form>
   );
 }

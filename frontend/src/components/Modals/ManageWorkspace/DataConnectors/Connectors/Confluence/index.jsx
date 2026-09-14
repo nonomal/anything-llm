@@ -1,11 +1,16 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import System from "@/models/system";
 import showToast from "@/utils/toast";
 import { Warning } from "@phosphor-icons/react";
 import { Tooltip } from "react-tooltip";
+import Toggle from "@/components/lib/Toggle";
 
 export default function ConfluenceOptions() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [accessType, setAccessType] = useState("username");
+  const [isCloud, setIsCloud] = useState(true);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,9 +27,13 @@ export default function ConfluenceOptions() {
         }
       );
       const { data, error } = await System.dataConnectors.confluence.collect({
-        pageUrl: form.get("pageUrl"),
+        baseUrl: form.get("baseUrl"),
+        spaceKey: form.get("spaceKey"),
         username: form.get("username"),
         accessToken: form.get("accessToken"),
+        cloud: form.get("isCloud") === "true",
+        personalAccessToken: form.get("personalAccessToken"),
+        bypassSSL: form.get("bypassSSL") === "true",
       });
 
       if (!!error) {
@@ -56,17 +65,44 @@ export default function ConfluenceOptions() {
               <div className="flex flex-col pr-10">
                 <div className="flex flex-col gap-y-1 mb-4">
                   <label className="text-white text-sm font-bold flex gap-x-2 items-center">
-                    <p className="font-bold text-white">Confluence Page URL</p>
+                    <p className="font-bold text-theme-text-primary">
+                      {t("connectors.confluence.deployment_type")}
+                    </p>
                   </label>
-                  <p className="text-xs font-normal text-white/50">
-                    URL of a page in the Confluence space.
+                  <p className="text-xs font-normal text-theme-text-secondary">
+                    {t("connectors.confluence.deployment_type_explained")}
+                  </p>
+                </div>
+                <select
+                  name="isCloud"
+                  className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                  required={true}
+                  autoComplete="off"
+                  spellCheck={false}
+                  defaultValue="true"
+                  onChange={(e) => setIsCloud(e.target.value === "true")}
+                >
+                  <option value="true">Atlassian Cloud</option>
+                  <option value="false">Self-hosted</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col pr-10">
+                <div className="flex flex-col gap-y-1 mb-4">
+                  <label className="text-white text-sm font-bold flex gap-x-2 items-center">
+                    <p className="font-bold text-white">
+                      {t("connectors.confluence.base_url")}
+                    </p>
+                  </label>
+                  <p className="text-xs font-normal text-theme-text-secondary">
+                    {t("connectors.confluence.base_url_explained")}
                   </p>
                 </div>
                 <input
                   type="url"
-                  name="pageUrl"
-                  className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="https://example.atlassian.net/wiki/spaces/~7120208c08555d52224113949698b933a3bb56/pages/851969/Test+anythingLLM+page"
+                  name="baseUrl"
+                  className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                  placeholder="eg: https://example.atlassian.net, http://localhost:8211, etc..."
                   required={true}
                   autoComplete="off"
                   spellCheck={false}
@@ -75,17 +111,17 @@ export default function ConfluenceOptions() {
               <div className="flex flex-col pr-10">
                 <div className="flex flex-col gap-y-1 mb-4">
                   <label className="text-white text-sm font-bold">
-                    Confluence Username
+                    {t("connectors.confluence.space_key")}
                   </label>
-                  <p className="text-xs font-normal text-white/50">
-                    Your Confluence username.
+                  <p className="text-xs font-normal text-theme-text-secondary">
+                    {t("connectors.confluence.space_key_explained")}
                   </p>
                 </div>
                 <input
-                  type="email"
-                  name="username"
-                  className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="jdoe@example.com"
+                  type="text"
+                  name="spaceKey"
+                  className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                  placeholder="eg: ~7120208c08555d52224113949698b933a3bb56"
                   required={true}
                   autoComplete="off"
                   spellCheck={false}
@@ -93,67 +129,162 @@ export default function ConfluenceOptions() {
               </div>
               <div className="flex flex-col pr-10">
                 <div className="flex flex-col gap-y-1 mb-4">
-                  <label className="text-white text-sm font-bold flex gap-x-2 items-center">
-                    <p className="font-bold text-white">
-                      Confluence Access Token
-                    </p>
-                    <Warning
-                      size={14}
-                      className="ml-1 text-orange-500 cursor-pointer"
-                      data-tooltip-id="access-token-tooltip"
-                      data-tooltip-place="right"
-                    />
-                    <Tooltip
-                      delayHide={300}
-                      id="access-token-tooltip"
-                      className="max-w-xs"
-                      clickable={true}
-                    >
-                      <p className="text-sm">
-                        You need to provide an access token for authentication.
-                        You can generate an access token{" "}
-                        <a
-                          href="https://id.atlassian.com/manage-profile/security/api-tokens"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          here
-                        </a>
-                        .
-                      </p>
-                    </Tooltip>
+                  <label className="text-white text-sm font-bold">
+                    {t("connectors.confluence.auth_type")}
                   </label>
-                  <p className="text-xs font-normal text-white/50">
-                    Access token for authentication.
+                  <p className="text-xs font-normal text-theme-text-secondary">
+                    {t("connectors.confluence.auth_type_explained")}
                   </p>
                 </div>
-                <input
-                  type="password"
-                  name="accessToken"
-                  className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
-                  placeholder="abcd1234"
-                  required={true}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
+                <select
+                  name="accessType"
+                  className="border-none bg-theme-settings-input-bg w-fit mt-2 px-4 border-gray-500 text-white text-sm rounded-lg block py-2"
+                  defaultValue={accessType}
+                  onChange={(e) => setAccessType(e.target.value)}
+                >
+                  {[
+                    {
+                      name: t("connectors.confluence.auth_type_username"),
+                      value: "username",
+                    },
+                    {
+                      name: t("connectors.confluence.auth_type_personal"),
+                      value: "personalToken",
+                    },
+                  ].map((type) => {
+                    return (
+                      <option key={type.value} value={type.value}>
+                        {type.name}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
+              {accessType === "username" && (
+                <>
+                  <div className="flex flex-col pr-10">
+                    <div className="flex flex-col gap-y-1 mb-4">
+                      <label className="text-white text-sm font-bold">
+                        {t("connectors.confluence.username")}
+                      </label>
+                      <p className="text-xs font-normal text-theme-text-secondary">
+                        {t("connectors.confluence.username_explained")}
+                      </p>
+                    </div>
+                    <input
+                      type="text"
+                      name="username"
+                      className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                      placeholder="jdoe@example.com"
+                      required={true}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div className="flex flex-col pr-10">
+                    <div className="flex flex-col gap-y-1 mb-4">
+                      <label className="text-white text-sm font-bold flex gap-x-2 items-center">
+                        <p className="font-bold text-white">
+                          {t("connectors.confluence.token")}
+                        </p>
+                        <Warning
+                          size={14}
+                          className="ml-1 text-orange-500 cursor-pointer"
+                          data-tooltip-id="access-token-tooltip"
+                          data-tooltip-place="right"
+                        />
+                        <Tooltip
+                          delayHide={300}
+                          id="access-token-tooltip"
+                          className="max-w-xs z-99"
+                          clickable={true}
+                        >
+                          <p className="text-sm">
+                            {t("connectors.confluence.token_explained_start")}
+                            <a
+                              href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {t("connectors.confluence.token_explained_link")}
+                            </a>
+                            .
+                          </p>
+                        </Tooltip>
+                      </label>
+                      <p className="text-xs font-normal text-theme-text-secondary">
+                        {t("connectors.confluence.token_desc")}
+                      </p>
+                    </div>
+                    <input
+                      type="password"
+                      name="accessToken"
+                      className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                      placeholder="abcd1234"
+                      required={true}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </div>
+                </>
+              )}
+              {accessType === "personalToken" && (
+                <div className="flex flex-col pr-10">
+                  <div className="flex flex-col gap-y-1 mb-4">
+                    <label className="text-white text-sm font-bold">
+                      {t("connectors.confluence.pat_token")}
+                    </label>
+                    <p className="text-xs font-normal text-theme-text-secondary">
+                      {t("connectors.confluence.pat_token_explained")}
+                    </p>
+                  </div>
+                  <input
+                    type="password"
+                    name="personalAccessToken"
+                    className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
+                    placeholder="abcd1234"
+                    required={true}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+              )}
             </div>
           </div>
+
+          {!isCloud && (
+            <div className="w-full flex flex-col py-2">
+              <div className="w-full flex flex-col gap-4">
+                <div className="flex flex-col pr-10">
+                  <div className="flex flex-col gap-y-1 mb-4">
+                    <label className="text-white text-sm font-bold flex gap-x-2 items-center">
+                      <Toggle size="md" name="bypassSSL" value="true" />
+                      <p className="font-bold text-theme-text-primary">
+                        {t("connectors.confluence.bypass_ssl")}
+                      </p>
+                    </label>
+                    <p className="text-xs font-normal text-theme-text-secondary">
+                      {t("connectors.confluence.bypass_ssl_explained")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-y-2 w-full pr-10">
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 w-full justify-center border border-slate-200 px-4 py-2 rounded-lg text-dark-text text-sm font-bold items-center flex gap-x-2 bg-slate-200 hover:bg-slate-300 hover:text-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              className="mt-2 w-full justify-center border-none px-4 py-2 rounded-lg text-dark-text light:text-white text-sm font-bold items-center flex gap-x-2 bg-theme-home-button-primary hover:bg-theme-home-button-primary-hover disabled:bg-theme-home-button-primary-hover disabled:cursor-not-allowed"
             >
               {loading ? "Collecting pages..." : "Submit"}
             </button>
             {loading && (
-              <p className="text-xs text-white/50">
-                Once complete, all pages will be available for embedding into
-                workspaces.
+              <p className="text-xs text-theme-text-secondary">
+                {t("connectors.confluence.task_explained")}
               </p>
             )}
           </div>

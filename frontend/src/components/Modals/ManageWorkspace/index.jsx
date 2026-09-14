@@ -1,15 +1,25 @@
 import React, { useState, useEffect, memo } from "react";
 import { X } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import Workspace from "../../../models/workspace";
 import System from "../../../models/system";
-import { isMobile } from "react-device-detect";
+import { isMobileOnly } from "react-device-detect";
 import useUser from "../../../hooks/useUser";
 import DocumentSettings from "./Documents";
 import DataConnectors from "./DataConnectors";
+import Modal, {
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalPrimaryButton,
+} from "@/components/lib/Modal";
+import { EmbeddingProgressProvider } from "@/EmbeddingProgressContext";
+import { useModalEscape } from "@/hooks/useModalEscape";
 
 const noop = () => {};
 const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
+  const { t } = useTranslation();
   const { slug } = useParams();
   const { user } = useUser();
   const [workspace, setWorkspace] = useState(null);
@@ -34,33 +44,24 @@ const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
 
   if (!workspace) return null;
 
-  if (isMobile) {
+  if (isMobileOnly) {
     return (
-      <div className="w-screen h-screen fixed top-0 left-0 flex justify-center items-center z-99">
-        <div className="backdrop h-full w-full absolute top-0 z-10" />
-        <div className={`absolute max-h-full transition duration-300 z-20`}>
-          <div className="relative max-w-lg mx-auto bg-main-gradient rounded-[12px] shadow border-2 border-slate-300/10">
-            <div className="p-6">
-              <h1 className="text-white text-lg font-semibold">
-                Editing "{workspace.name}"
-              </h1>
-              <p className="text-white mt-4">
-                Editing these settings are only available on a desktop device.
-                Please access this page on your desktop to continue.
-              </p>
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={hideModal}
-                  type="button"
-                  className="transition-all duration-300 border border-slate-200 px-4 py-2 rounded-lg text-white text-sm items-center flex gap-x-2 hover:bg-slate-200 hover:text-slate-800 focus:ring-gray-800"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Modal isOpen={true} onClose={hideModal} size="md">
+        <ModalHeader
+          title={`${t("connectors.manage.editing")} "${workspace.name}"`}
+          onClose={hideModal}
+        />
+        <ModalBody>
+          <p className="text-zinc-300 light:text-slate-700">
+            {t("connectors.manage.desktop-only")}
+          </p>
+        </ModalBody>
+        <ModalFooter className="justify-end">
+          <ModalPrimaryButton type="button" onClick={hideModal}>
+            {t("connectors.manage.dismiss")}
+          </ModalPrimaryButton>
+        </ModalFooter>
+      </Modal>
     );
   }
 
@@ -68,14 +69,14 @@ const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
     <div className="w-screen h-screen fixed top-0 left-0 flex justify-center items-center z-99">
       <div className="backdrop h-full w-full absolute top-0 z-10" />
       <div className="absolute max-h-full w-fit transition duration-300 z-20 md:overflow-y-auto py-10">
-        <div className="relative bg-main-gradient rounded-[12px] shadow border-2 border-slate-300/10">
-          <div className="flex items-start justify-between p-2 rounded-t border-gray-500/50 relative">
+        <div className="relative bg-zinc-900 light:bg-white rounded-[12px] shadow border-2 border-zinc-800 light:border-slate-300">
+          <div className="flex items-start justify-between p-2 rounded-t relative">
             <button
               onClick={hideModal}
               type="button"
-              className="z-50 text-gray-400 bg-transparent rounded-lg text-sm p-1.5 ml-auto inline-flex items-center hover:border-white/60 bg-sidebar-button hover:bg-menu-item-selected-gradient hover:border-slate-100 hover:border-opacity-50 border-transparent border"
+              className="z-29 border-none bg-transparent rounded-lg text-sm p-1.5 ml-auto inline-flex items-center text-zinc-50 light:text-slate-900 hover:bg-zinc-800 light:hover:bg-slate-100 transition-colors duration-200"
             >
-              <X className="text-gray-300 text-lg" />
+              <X size={20} weight="bold" />
             </button>
           </div>
 
@@ -87,7 +88,9 @@ const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
           )}
 
           {selectedTab === "documents" ? (
-            <DocumentSettings workspace={workspace} systemSettings={settings} />
+            <EmbeddingProgressProvider>
+              <DocumentSettings workspace={workspace} />
+            </EmbeddingProgressProvider>
           ) : (
             <DataConnectors workspace={workspace} systemSettings={settings} />
           )}
@@ -100,46 +103,50 @@ const ManageWorkspace = ({ hideModal = noop, providedSlug = null }) => {
 export default memo(ManageWorkspace);
 
 const ModalTabSwitcher = ({ selectedTab, setSelectedTab }) => {
+  const { t } = useTranslation();
   return (
     <div className="w-full flex justify-center z-10 relative">
-      <div className="gap-x-2 flex justify-center -mt-[68px] mb-10 bg-sidebar-button p-1 rounded-xl shadow border-2 border-slate-300/10 w-fit">
+      <div className="gap-x-2 flex justify-center -mt-[68px] mb-10 bg-zinc-900 light:bg-white p-1 rounded-xl shadow border-2 border-zinc-800 light:border-slate-300 w-fit">
         <button
           onClick={() => setSelectedTab("documents")}
-          className={`px-4 py-2 rounded-[8px] font-semibold text-white hover:bg-switch-selected hover:bg-opacity-60 ${
+          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-zinc-800 light:hover:bg-sky-100 ${
             selectedTab === "documents"
-              ? "bg-switch-selected shadow-md font-bold"
-              : "bg-sidebar-button text-white/20 font-medium hover:text-white"
+              ? "bg-zinc-800 font-bold text-white light:bg-sky-100 light:text-sky-700"
+              : "text-white/20 font-medium hover:text-white light:bg-white light:text-slate-500"
           }`}
         >
-          Documents
+          {t("connectors.manage.documents")}
         </button>
         <button
           onClick={() => setSelectedTab("dataConnectors")}
-          className={`px-4 py-2 rounded-[8px] font-semibold text-white hover:bg-switch-selected hover:bg-opacity-60 ${
+          className={`border-none px-4 py-2 rounded-[8px] font-semibold hover:bg-zinc-800 light:hover:bg-sky-100 ${
             selectedTab === "dataConnectors"
-              ? "bg-switch-selected shadow-md font-bold"
-              : "bg-sidebar-button text-white/20 font-medium hover:text-white"
+              ? "bg-zinc-800 font-bold text-white light:bg-sky-100 light:text-sky-700"
+              : "text-white/20 font-medium hover:text-white light:bg-white light:text-slate-500"
           }`}
         >
-          Data Connectors
+          {t("connectors.manage.data-connectors")}
         </button>
       </div>
     </div>
   );
 };
+
 export function useManageWorkspaceModal() {
   const { user } = useUser();
   const [showing, setShowing] = useState(false);
 
-  const showModal = () => {
+  function showModal() {
     if (user?.role !== "default") {
       setShowing(true);
     }
-  };
+  }
 
-  const hideModal = () => {
+  function hideModal() {
     setShowing(false);
-  };
+  }
+
+  useModalEscape(showing, hideModal);
 
   return { showing, showModal, hideModal };
 }

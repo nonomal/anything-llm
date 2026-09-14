@@ -1,8 +1,11 @@
+import moment from "moment";
 import truncate from "truncate";
-import { X, Trash } from "@phosphor-icons/react";
+import { Trash } from "@phosphor-icons/react";
 import System from "@/models/system";
-import ModalWrapper from "@/components/ModalWrapper";
+import Modal, { ModalHeader, ModalBody } from "@/components/lib/Modal";
 import { useModal } from "@/hooks/useModal";
+import MarkdownRenderer from "../MarkdownRenderer";
+import { safeJsonParse } from "@/utils/request";
 
 export default function ChatRow({ chat, onDelete }) {
   const {
@@ -29,68 +32,61 @@ export default function ChatRow({ chat, onDelete }) {
 
   return (
     <>
-      <tr className="bg-transparent text-white text-opacity-80 text-sm font-medium">
-        <td className="px-6 py-4 font-medium whitespace-nowrap text-white">
+      <tr className="bg-transparent text-white text-opacity-80 text-xs font-medium border-b border-white/10 h-10">
+        <td className="px-6 font-medium whitespace-nowrap text-white">
           {chat.id}
         </td>
-        <td className="px-6 py-4 font-medium whitespace-nowrap text-white">
+        <td className="px-6 font-medium whitespace-nowrap text-white">
           {chat.user?.username}
         </td>
-        <td className="px-6 py-4">{chat.workspace?.name}</td>
+        <td className="px-6">{chat.workspace?.name}</td>
         <td
           onClick={openPromptModal}
-          className="px-6 py-4 border-transparent cursor-pointer transform transition-transform duration-200 hover:scale-105 hover:shadow-lg"
+          className="px-6 border-transparent cursor-pointer transform transition-transform duration-200 hover:scale-105 hover:shadow-lg"
         >
           {truncate(chat.prompt, 40)}
         </td>
         <td
           onClick={openResponseModal}
-          className="px-6 py-4 cursor-pointer transform transition-transform duration-200 hover:scale-105 hover:shadow-lg"
+          className="px-6 cursor-pointer transform transition-transform duration-200 hover:scale-105 hover:shadow-lg"
         >
-          {truncate(JSON.parse(chat.response)?.text, 40)}
+          {truncate(safeJsonParse(chat.response, {})?.text, 40)}
         </td>
-        <td className="px-6 py-4">{chat.createdAt}</td>
-        <td className="px-6 py-4 flex items-center gap-x-6">
+        <td className="px-6">{moment(chat.createdAt).format("lll")}</td>
+        <td className="px-6 flex items-center gap-x-6 h-full mt-1">
           <button
             onClick={handleDelete}
-            className="font-medium px-2 py-1 rounded-lg hover:bg-sidebar-gradient text-white hover:text-white/80 hover:bg-opacity-20"
+            className="text-xs font-medium text-white/80 light:text-black/80 hover:light:text-red-500 hover:text-red-300 rounded-lg px-2 py-1 hover:bg-white hover:light:bg-red-50 hover:bg-opacity-10"
           >
             <Trash className="h-5 w-5" />
           </button>
         </td>
       </tr>
-      <ModalWrapper isOpen={isPromptOpen}>
+      <Modal isOpen={isPromptOpen} onClose={closePromptModal}>
         <TextPreview text={chat.prompt} closeModal={closePromptModal} />
-      </ModalWrapper>
-      <ModalWrapper isOpen={isResponseOpen}>
+      </Modal>
+      <Modal isOpen={isResponseOpen} onClose={closeResponseModal}>
         <TextPreview
-          text={JSON.parse(chat.response)?.text}
+          text={
+            <MarkdownRenderer
+              content={safeJsonParse(chat.response, {})?.text}
+            />
+          }
           closeModal={closeResponseModal}
         />
-      </ModalWrapper>
+      </Modal>
     </>
   );
 }
 const TextPreview = ({ text, closeModal }) => {
   return (
-    <div className="relative w-full md:max-w-2xl max-h-full">
-      <div className="relative bg-main-gradient rounded-lg shadow">
-        <div className="flex items-start justify-between p-4 border-b rounded-t border-gray-600">
-          <h3 className="text-xl font-semibold text-white">Viewing Text</h3>
-          <button
-            onClick={closeModal}
-            type="button"
-            className="transition-all duration-300 text-gray-400 bg-transparent hover:border-white/60 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center bg-sidebar-button hover:bg-menu-item-selected-gradient hover:border-slate-100 hover:border-opacity-50 border-transparent border"
-          >
-            <X className="text-gray-300 text-lg" />
-          </button>
-        </div>
-        <div className="w-full p-6">
-          <pre className="w-full h-[200px] py-2 px-4 whitespace-pre-line overflow-auto rounded-lg bg-zinc-900 border border-gray-500 text-white text-sm">
-            {text}
-          </pre>
-        </div>
-      </div>
-    </div>
+    <form className="flex flex-col gap-y-5">
+      <ModalHeader title="Viewing Text" onClose={closeModal} />
+      <ModalBody>
+        <pre className="w-full h-[200px] py-2 px-4 whitespace-pre-line overflow-auto rounded-lg bg-zinc-800 light:bg-white border border-zinc-800 light:border-slate-300 text-zinc-100 light:text-slate-900 text-sm">
+          {text}
+        </pre>
+      </ModalBody>
+    </form>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
 import AgentLLMItem from "./AgentLLMItem";
-import { AVAILABLE_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
+import { ALL_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
 import { CaretUpDown, Gauge, MagnifyingGlass, X } from "@phosphor-icons/react";
 import AgentModelSelection from "../AgentModelSelection";
 import { useTranslation } from "react-i18next";
@@ -17,41 +17,57 @@ const ENABLED_PROVIDERS = [
   "koboldcpp",
   "togetherai",
   "openrouter",
+  "novita",
   "mistral",
   "perplexity",
   "textgenwebui",
   "generic-openai",
-  // TODO: More agent support.
-  // "cohere",         // Has tool calling and will need to build explicit support
-  // "huggingface"     // Can be done but already has issues with no-chat templated. Needs to be tested.
-  // "gemini",         // Too rate limited and broken in several ways to use for agents.
+  "bedrock",
+  "vertex",
+  "fireworksai",
+  "deepseek",
+  "ppio",
+  "litellm",
+  "apipie",
+  "xai",
+  "nvidia-nim",
+  "gemini",
+  "moonshotai",
+  "cometapi",
+  "foundry",
+  "zai",
+  "giteeai",
+  "cohere",
+  "llmman",
+  "privatemode",
+  "sambanova",
+  "lemonade",
+  "omlx",
+  "minimax",
+  "cerebras",
 ];
 const WARN_PERFORMANCE = [
   "lmstudio",
-  "groq",
-  "azure",
   "koboldcpp",
   "ollama",
   "localai",
-  "openrouter",
-  "generic-openai",
   "textgenwebui",
+  "llmman",
 ];
 
 const LLM_DEFAULT = {
-  name: "Please make a selection",
+  name: "System Default",
   value: "none",
   logo: AnythingLLMIcon,
   options: () => <React.Fragment />,
-  description: "Agents will not work until a valid selection is made.",
+  description:
+    "Agents will use the workspace or system LLM unless otherwise specified.",
   requiredConfig: [],
 };
 
 const LLMS = [
   LLM_DEFAULT,
-  ...AVAILABLE_LLM_PROVIDERS.filter((llm) =>
-    ENABLED_PROVIDERS.includes(llm.value)
-  ),
+  ...ALL_LLM_PROVIDERS.filter((llm) => ENABLED_PROVIDERS.includes(llm.value)),
 ];
 
 export default function AgentLLMSelection({
@@ -92,9 +108,9 @@ export default function AgentLLMSelection({
 
   const selectedLLMObject = LLMS.find((llm) => llm.value === selectedLLM);
   return (
-    <div className="border-b border-white/40 pb-8">
+    <div className="flex flex-col gap-y-[8px]">
       {WARN_PERFORMANCE.includes(selectedLLM) && (
-        <div className="flex flex-col md:flex-row md:items-center gap-x-2 text-white mb-4 bg-blue-800/30 w-fit rounded-lg px-4 py-2">
+        <div className="flex flex-col md:flex-row md:items-center gap-x-2 text-white bg-blue-800/30 w-fit rounded-lg px-4 py-2">
           <div className="gap-x-2 flex items-center">
             <Gauge className="shrink-0" size={25} />
             <p className="text-sm">{t("agent.performance-warning")}</p>
@@ -102,11 +118,11 @@ export default function AgentLLMSelection({
         </div>
       )}
 
-      <div className="flex flex-col">
+      <div className="flex flex-col gap-y-[8px]">
         <label htmlFor="name" className="block input-label">
           {t("agent.provider.title")}
         </label>
-        <p className="text-white text-opacity-60 text-xs font-medium py-1.5">
+        <p className="text-white text-opacity-60 text-xs font-medium">
           {t("agent.provider.description")}
         </p>
       </div>
@@ -120,20 +136,20 @@ export default function AgentLLMSelection({
           />
         )}
         {searchMenuOpen ? (
-          <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] overflow-auto white-scrollbar min-h-[64px] bg-dark-input rounded-lg flex flex-col justify-between cursor-pointer border-2 border-primary-button z-20">
+          <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] min-h-[64px] bg-theme-settings-input-bg rounded-lg flex flex-col justify-between cursor-pointer border-2 border-primary-button z-20">
             <div className="w-full flex flex-col gap-y-1">
-              <div className="flex items-center sticky top-0 border-b border-[#9CA3AF] mx-4 bg-dark-input">
+              <div className="flex items-center sticky top-0 z-10 border-b border-[#9CA3AF] mx-4 bg-theme-settings-input-bg">
                 <MagnifyingGlass
                   size={20}
                   weight="bold"
-                  className="absolute left-4 z-30 text-white -ml-4 my-2"
+                  className="absolute left-4 z-30 text-theme-text-primary -ml-4 my-2"
                 />
                 <input
                   type="text"
                   name="llm-search"
                   autoComplete="off"
                   placeholder="Search available LLM providers"
-                  className="border-none -ml-4 my-2 bg-transparent z-20 pl-12 h-[38px] w-full px-4 py-1 text-sm outline-none text-white placeholder:text-white placeholder:font-medium"
+                  className="border-none -ml-4 my-2 bg-transparent z-20 pl-12 h-[38px] w-full px-4 py-1 text-sm outline-none text-theme-text-primary placeholder:text-theme-text-primary placeholder:font-medium"
                   onChange={(e) => setSearchQuery(e.target.value)}
                   ref={searchInputRef}
                   onKeyDown={(e) => {
@@ -143,11 +159,11 @@ export default function AgentLLMSelection({
                 <X
                   size={20}
                   weight="bold"
-                  className="cursor-pointer text-white hover:text-x-button"
+                  className="cursor-pointer text-theme-text-primary hover:text-x-button"
                   onClick={handleXButton}
                 />
               </div>
-              <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4">
+              <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4 max-h-[245px]">
                 {filteredLLMs.map((llm) => {
                   return (
                     <AgentLLMItem
@@ -165,7 +181,7 @@ export default function AgentLLMSelection({
           </div>
         ) : (
           <button
-            className="w-full max-w-[640px] h-[64px] bg-dark-input rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-primary-button transition-all duration-300"
+            className="w-full max-w-[640px] h-[64px] bg-theme-settings-input-bg rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-primary-button transition-all duration-300"
             type="button"
             onClick={() => setSearchMenuOpen(true)}
           >
@@ -189,7 +205,7 @@ export default function AgentLLMSelection({
         )}
       </div>
       {selectedLLM !== "none" && (
-        <div className="mt-4 flex flex-col gap-y-1">
+        <div className="flex flex-col gap-y-1">
           <AgentModelSelection
             provider={selectedLLM}
             workspace={workspace}

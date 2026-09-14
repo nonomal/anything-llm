@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from "react";
 import { SpeakerHigh, PauseCircle, CircleNotch } from "@phosphor-icons/react";
-import { Tooltip } from "react-tooltip";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
+import { useTranslation } from "react-i18next";
 
 export default function AsyncTTSMessage({ slug, chatId }) {
   const playerRef = useRef(null);
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [audioSrc, setAudioSrc] = useState(null);
+  const { t } = useTranslation();
 
   function speakMessage() {
     if (speaking) {
@@ -57,11 +58,14 @@ export default function AsyncTTSMessage({ slug, chatId }) {
     <div className="mt-3 relative">
       <button
         onClick={speakMessage}
+        data-auto-play-chat-id={chatId}
         data-tooltip-id="message-to-speech"
         data-tooltip-content={
-          speaking ? "Pause TTS speech of message" : "TTS Speak message"
+          speaking
+            ? t("pause_tts_speech_message")
+            : t("chat_window.tts_speak_message")
         }
-        className="border-none text-zinc-300"
+        className="border-none text-zinc-300 light:text-slate-500"
         aria-label={speaking ? "Pause speech" : "Speak message"}
       >
         {speaking ? (
@@ -83,12 +87,6 @@ export default function AsyncTTSMessage({ slug, chatId }) {
           controls={false}
         />
       </button>
-      <Tooltip
-        id="message-to-speech"
-        place="bottom"
-        delayShow={300}
-        className="tooltip !text-xs"
-      />
     </div>
   );
 }

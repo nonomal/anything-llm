@@ -17,17 +17,12 @@ export default function ChatTemperatureSettings({
   const { t } = useTranslation();
   return (
     <div>
-      <div className="flex flex-col">
+      <div className="flex flex-col gap-y-[8px]">
         <label htmlFor="name" className="block input-label">
           {t("chat.temperature.title")}
         </label>
-        <p className="text-white text-opacity-60 text-xs font-medium py-1.5">
-          {t("chat.temperature.desc-start")}
-          <br />
+        <p className="text-white text-opacity-60 text-xs font-medium">
           {t("chat.temperature.desc-end")}
-          <br />
-          <br />
-          <i>{t("chat.temperature.hint")}</i>
         </p>
       </div>
       <input
@@ -37,7 +32,7 @@ export default function ChatTemperatureSettings({
         step={0.1}
         onWheel={(e) => e.target.blur()}
         defaultValue={workspace?.openAiTemp ?? defaults.temp}
-        className="bg-zinc-900 text-white placeholder:text-white/20 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+        className="border-none bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder text-sm rounded-lg focus:outline-primary-button active:outline-primary-button outline-none block w-full p-2.5"
         placeholder="0.7"
         required={true}
         autoComplete="off"

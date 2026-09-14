@@ -42,6 +42,98 @@ const DataConnector = {
         });
     },
   },
+  gitea: {
+    branches: async ({ repo, accessToken }) => {
+      return await fetch(`${API_BASE}/ext/gitea/branches`, {
+        method: "POST",
+        headers: baseHeaders(),
+        cache: "force-cache",
+        body: JSON.stringify({ repo, accessToken }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return res.data;
+        })
+        .then((data) => {
+          return { branches: data?.branches || [], error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          showToast(e.message, "error");
+          return { branches: [], error: e.message };
+        });
+    },
+    collect: async function ({ repo, accessToken, branch, ignorePaths = [] }) {
+      return await fetch(`${API_BASE}/ext/gitea/repo`, {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify({ repo, accessToken, branch, ignorePaths }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return { data: res.data, error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          return { data: null, error: e.message };
+        });
+    },
+  },
+  gitlab: {
+    branches: async ({ repo, accessToken }) => {
+      return await fetch(`${API_BASE}/ext/gitlab/branches`, {
+        method: "POST",
+        headers: baseHeaders(),
+        cache: "force-cache",
+        body: JSON.stringify({ repo, accessToken }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return res.data;
+        })
+        .then((data) => {
+          return { branches: data?.branches || [], error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          showToast(e.message, "error");
+          return { branches: [], error: e.message };
+        });
+    },
+    collect: async function ({
+      repo,
+      accessToken,
+      branch,
+      ignorePaths = [],
+      fetchIssues = false,
+      fetchWikis = false,
+    }) {
+      return await fetch(`${API_BASE}/ext/gitlab/repo`, {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify({
+          repo,
+          accessToken,
+          branch,
+          ignorePaths,
+          fetchIssues,
+          fetchWikis,
+        }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return { data: res.data, error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          return { data: null, error: e.message };
+        });
+    },
+  },
   youtube: {
     transcribe: async ({ url }) => {
       return await fetch(`${API_BASE}/ext/youtube/transcript`, {
@@ -80,15 +172,89 @@ const DataConnector = {
   },
 
   confluence: {
-    collect: async function ({ pageUrl, username, accessToken }) {
+    collect: async function ({
+      baseUrl,
+      spaceKey,
+      username,
+      accessToken,
+      cloud,
+      personalAccessToken,
+      bypassSSL,
+    }) {
       return await fetch(`${API_BASE}/ext/confluence`, {
         method: "POST",
         headers: baseHeaders(),
         body: JSON.stringify({
-          pageUrl,
+          baseUrl,
+          spaceKey,
           username,
           accessToken,
+          cloud,
+          personalAccessToken,
+          bypassSSL,
         }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return { data: res.data, error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          return { data: null, error: e.message };
+        });
+    },
+  },
+
+  drupalwiki: {
+    collect: async function ({ baseUrl, spaceIds, accessToken }) {
+      return await fetch(`${API_BASE}/ext/drupalwiki`, {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify({
+          baseUrl,
+          spaceIds,
+          accessToken,
+        }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return { data: res.data, error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          return { data: null, error: e.message };
+        });
+    },
+  },
+  obsidian: {
+    collect: async function ({ files }) {
+      return await fetch(`${API_BASE}/ext/obsidian/vault`, {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify({
+          files,
+        }),
+      })
+        .then((res) => res.json())
+        .then((res) => {
+          if (!res.success) throw new Error(res.reason);
+          return { data: res.data, error: null };
+        })
+        .catch((e) => {
+          console.error(e);
+          return { data: null, error: e.message };
+        });
+    },
+  },
+
+  paperlessNgx: {
+    collect: async function ({ baseUrl, apiToken }) {
+      return await fetch(`${API_BASE}/ext/paperless-ngx`, {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify({ baseUrl, apiToken }),
       })
         .then((res) => res.json())
         .then((res) => {

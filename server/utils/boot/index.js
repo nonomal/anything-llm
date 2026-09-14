@@ -3,7 +3,21 @@ const { BackgroundService } = require("../BackgroundWorkers");
 const { EncryptionManager } = require("../EncryptionManager");
 const { CommunicationKey } = require("../comKey");
 const setupTelemetry = require("../telemetry");
+const eagerLoadContextWindows = require("./eagerLoadContextWindows");
+const markOnboarded = require("./markOnboarded");
+const migrateWebBrowsingToDefault = require("./migrateWebBrowsingToDefault");
+const { PushNotifications } = require("../PushNotifications");
+const { TelegramBotService } = require("../telegramBot");
 
+// Testing SSL? You can make a self signed certificate and point the ENVs to that location
+// make a directory in server called 'sslcert' - cd into it
+// - openssl genrsa -aes256 -passout pass:gsahdg -out server.pass.key 4096
+// - openssl rsa -passin pass:gsahdg -in server.pass.key -out server.key
+// - rm server.pass.key
+// - openssl req -new -key server.key -out server.csr
+// Update .env keys with the correct values and boot. These are temporary and not real SSL certs - only use for local.
+// Test with https://localhost:3001/api/ping
+// build and copy frontend to server/public with correct API_BASE and start server in prod model and all should be ok
 function bootSSL(app, port = 3001) {
   try {
     console.log(
@@ -18,15 +32,20 @@ function bootSSL(app, port = 3001) {
 
     server
       .listen(port, async () => {
+        await migrateWebBrowsingToDefault(); // must run before markOnboarded() so a fresh instance is not mistaken for an existing one.
+        await markOnboarded();
         await setupTelemetry();
         new CommunicationKey(true);
         new EncryptionManager();
         new BackgroundService().boot();
+        await eagerLoadContextWindows();
+        await PushNotifications.setupPushNotificationService();
+        await TelegramBotService.bootIfActive();
         console.log(`Primary server in HTTPS mode listening on port ${port}`);
       })
       .on("error", catchSigTerms);
 
-    require("express-ws")(app, server); // Apply same certificate + server for WSS connections
+    require("@mintplex-labs/express-ws").default(app, server);
     return { app, server };
   } catch (e) {
     console.error(
@@ -47,10 +66,15 @@ function bootHTTP(app, port = 3001) {
 
   app
     .listen(port, async () => {
+      await migrateWebBrowsingToDefault(); // must run before markOnboarded() so a fresh instance is not mistaken for an existing one.
+      await markOnboarded();
       await setupTelemetry();
       new CommunicationKey(true);
       new EncryptionManager();
       new BackgroundService().boot();
+      await eagerLoadContextWindows();
+      await PushNotifications.setupPushNotificationService();
+      await TelegramBotService.bootIfActive();
       console.log(`Primary server in HTTP mode listening on port ${port}`);
     })
     .on("error", catchSigTerms);

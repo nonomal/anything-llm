@@ -1,4 +1,11 @@
 import { Warning } from "@phosphor-icons/react";
+import {
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalSecondaryButton,
+  ModalDangerButton,
+} from "@/components/lib/Modal";
 
 export default function ChangeWarningModal({
   warningText = "",
@@ -6,42 +13,37 @@ export default function ChangeWarningModal({
   onConfirm,
 }) {
   return (
-    <div className="relative w-full max-w-2xl max-h-full">
-      <div className="relative bg-main-gradient rounded-lg shadow">
-        <div className="flex items-start justify-between p-4 border-b rounded-t border-gray-500/50">
-          <div className="flex items-center gap-2">
-            <Warning
-              className="text-yellow-300 text-lg w-6 h-6"
-              weight="fill"
-            />
-            <h3 className="text-xl font-semibold text-yellow-300">Warning</h3>
-          </div>
-        </div>
-        <div className="w-[550px] p-6 text-white">
-          <p>
-            {warningText}
-            <br />
-            <br />
-            Are you sure you want to proceed?
-          </p>
-        </div>
-
-        <div className="flex w-full justify-between items-center p-6 space-x-2 border-t rounded-b border-gray-500/50">
-          <button
-            onClick={onClose}
-            type="button"
-            className="px-4 py-2 rounded-lg text-white hover:bg-red-500 transition-all duration-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="transition-all duration-300 border border-slate-200 px-4 py-2 rounded-lg text-white text-sm items-center flex gap-x-2 hover:bg-slate-200 hover:text-slate-800 focus:ring-gray-800"
-          >
-            Confirm
-          </button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-y-5">
+      <ModalHeader
+        title={
+          <span className="flex items-center gap-x-2 text-red-500">
+            <Warning className="w-6 h-6 shrink-0" weight="fill" />
+            WARNING - This action is irreversible
+          </span>
+        }
+        onClose={onClose}
+      />
+      <ModalBody>
+        <p className="text-zinc-300 light:text-slate-700">
+          {warningText.split("\\n").map((line, index) => (
+            <span key={index}>
+              {line}
+              <br />
+            </span>
+          ))}
+          <br />
+          <br />
+          Are you sure you want to proceed?
+        </p>
+      </ModalBody>
+      <ModalFooter className="justify-end">
+        <ModalSecondaryButton onClick={onClose} type="button">
+          Cancel
+        </ModalSecondaryButton>
+        <ModalDangerButton onClick={onConfirm} type="submit">
+          Confirm
+        </ModalDangerButton>
+      </ModalFooter>
     </div>
   );
 }

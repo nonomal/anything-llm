@@ -1,90 +1,63 @@
 import React, { useState } from "react";
-import { X } from "@phosphor-icons/react";
 import Document from "@/models/document";
+import {
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalPrimaryButton,
+  ModalSecondaryButton,
+} from "@/components/lib/Modal";
 
-export default function NewFolderModal({ closeModal, files, setFiles }) {
+export default function NewFolderModal({ closeModal, onCreated }) {
   const [error, setError] = useState(null);
   const [folderName, setFolderName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     setError(null);
-    if (folderName.trim() !== "") {
-      const newFolder = {
-        name: folderName,
-        type: "folder",
-        items: [],
-      };
-      const { success } = await Document.createFolder(folderName);
-      if (success) {
-        setFiles({
-          ...files,
-          items: [...files.items, newFolder],
-        });
-        closeModal();
-      } else {
-        setError("Failed to create folder");
-      }
-    }
+    const name = folderName.trim();
+    if (!name || creating) return;
+
+    setCreating(true);
+    const { success } = await Document.createFolder(name);
+    setCreating(false);
+    if (!success) return setError("Failed to create folder");
+    onCreated(name);
   };
 
   return (
-    <div className="relative w-full max-w-xl max-h-full">
-      <div className="relative bg-main-gradient rounded-lg shadow">
-        <div className="flex items-start justify-between p-4 border-b rounded-t border-gray-500/50">
-          <h3 className="text-xl font-semibold text-white">
-            Create New Folder
-          </h3>
-          <button
-            onClick={closeModal}
-            type="button"
-            className="transition-all duration-300 text-gray-400 bg-transparent hover:border-white/60 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center bg-sidebar-button hover:bg-menu-item-selected-gradient hover:border-slate-100 hover:border-opacity-50 border-transparent border"
-            data-modal-hide="staticModal"
+    <form onSubmit={handleCreate} className="flex flex-col gap-y-5">
+      <ModalHeader title="Create New Folder" onClose={closeModal} />
+      <ModalBody>
+        <div>
+          <label
+            htmlFor="folderName"
+            className="block mb-1.5 text-sm font-medium text-zinc-50 light:text-slate-700"
           >
-            <X className="text-gray-300 text-lg" />
-          </button>
+            Folder Name
+          </label>
+          <input
+            name="folderName"
+            type="text"
+            className="w-full h-[34px] px-3.5 text-sm rounded-lg outline-none bg-zinc-800 border border-zinc-800 text-zinc-300 placeholder:text-zinc-400 light:bg-white light:border-slate-300 light:text-slate-700 light:placeholder:text-slate-400 focus:border-sky-500 light:focus:border-sky-500"
+            placeholder="Enter folder name"
+            required={true}
+            autoComplete="off"
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+          />
         </div>
-        <form onSubmit={handleCreate}>
-          <div className="p-6 space-y-6 flex h-full w-full">
-            <div className="w-full flex flex-col gap-y-4">
-              <div>
-                <label
-                  htmlFor="folderName"
-                  className="block mb-2 text-sm font-medium text-white"
-                >
-                  Folder Name
-                </label>
-                <input
-                  name="folderName"
-                  type="text"
-                  className="bg-zinc-900 placeholder:text-white/20 border-gray-500 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-                  placeholder="Enter folder name"
-                  required={true}
-                  autoComplete="off"
-                  value={folderName}
-                  onChange={(e) => setFolderName(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-red-400 text-sm">Error: {error}</p>}
-            </div>
-          </div>
-          <div className="flex w-full justify-between items-center p-6 space-x-2 border-t rounded-b border-gray-500/50">
-            <button
-              onClick={closeModal}
-              type="button"
-              className="px-4 py-2 rounded-lg text-white hover:bg-stone-900 transition-all duration-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="transition-all duration-300 border border-slate-200 px-4 py-2 rounded-lg text-white text-sm items-center flex gap-x-2 hover:bg-slate-200 hover:text-slate-800 focus:ring-gray-800"
-            >
-              Create Folder
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {error && <p className="text-red-400 text-sm">Error: {error}</p>}
+      </ModalBody>
+      <ModalFooter>
+        <ModalSecondaryButton onClick={closeModal} type="button">
+          Cancel
+        </ModalSecondaryButton>
+        <ModalPrimaryButton type="submit" disabled={creating}>
+          {creating ? "Creating..." : "Create Folder"}
+        </ModalPrimaryButton>
+      </ModalFooter>
+    </form>
   );
 }

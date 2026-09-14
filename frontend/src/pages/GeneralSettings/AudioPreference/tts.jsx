@@ -7,9 +7,16 @@ import CTAButton from "@/components/lib/CTAButton";
 import OpenAiLogo from "@/media/llmprovider/openai.png";
 import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
 import ElevenLabsIcon from "@/media/ttsproviders/elevenlabs.png";
+import PiperTTSIcon from "@/media/ttsproviders/piper.png";
+import GenericOpenAiLogo from "@/media/ttsproviders/generic-openai.png";
+import KokoroIcon from "@/media/ttsproviders/kokoro.png";
+
 import BrowserNative from "@/components/TextToSpeech/BrowserNative";
 import OpenAiTTSOptions from "@/components/TextToSpeech/OpenAiOptions";
 import ElevenLabsTTSOptions from "@/components/TextToSpeech/ElevenLabsOptions";
+import PiperTTSOptions from "@/components/TextToSpeech/PiperTTSOptions";
+import OpenAiGenericTTSOptions from "@/components/TextToSpeech/OpenAiGenericOptions";
+import KokoroTTSOptions from "@/components/TextToSpeech/KokoroOptions";
 
 const PROVIDERS = [
   {
@@ -32,6 +39,29 @@ const PROVIDERS = [
     logo: ElevenLabsIcon,
     options: (settings) => <ElevenLabsTTSOptions settings={settings} />,
     description: "Use ElevenLabs's text to speech voices and technology.",
+  },
+  {
+    name: "PiperTTS",
+    value: "piper_local",
+    logo: PiperTTSIcon,
+    options: (settings) => <PiperTTSOptions settings={settings} />,
+    description: "Run TTS models locally in your browser privately.",
+  },
+  {
+    name: "Kokoro",
+    value: "kokoro",
+    logo: KokoroIcon,
+    options: (settings) => <KokoroTTSOptions settings={settings} />,
+    description:
+      "Connect to a self-hosted kokoro-fastapi server for high-quality open-source voices.",
+  },
+  {
+    name: "OpenAI Compatible",
+    value: "generic-openai",
+    logo: GenericOpenAiLogo,
+    options: (settings) => <OpenAiGenericTTSOptions settings={settings} />,
+    description:
+      "Connect to an OpenAI compatible TTS service running locally or remotely.",
   },
 ];
 
@@ -95,7 +125,7 @@ export default function TextToSpeechProvider({ settings }) {
   return (
     <form onSubmit={handleSubmit} className="flex w-full">
       <div className="flex flex-col w-full px-1 md:pl-6 md:pr-[50px] md:py-6 py-16">
-        <div className="w-full flex flex-col gap-y-1 pb-6 border-white border-b-2 border-opacity-10">
+        <div className="w-full flex flex-col gap-y-1 pb-6 border-white light:border-theme-sidebar-border border-b-2 border-opacity-10">
           <div className="flex gap-x-4 items-center">
             <p className="text-lg leading-6 font-bold text-white">
               Text-to-speech Preference
@@ -124,20 +154,20 @@ export default function TextToSpeechProvider({ settings }) {
             />
           )}
           {searchMenuOpen ? (
-            <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] overflow-auto white-scrollbar min-h-[64px] bg-dark-input rounded-lg flex flex-col justify-between cursor-pointer border-2 border-primary-button z-20">
+            <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] min-h-[64px] bg-theme-settings-input-bg rounded-lg flex flex-col justify-between cursor-pointer border-2 border-primary-button z-20">
               <div className="w-full flex flex-col gap-y-1">
-                <div className="flex items-center sticky top-0 border-b border-[#9CA3AF] mx-4 bg-dark-input">
+                <div className="flex items-center sticky top-0 z-10 border-b border-[#9CA3AF] mx-4 bg-theme-settings-input-bg">
                   <MagnifyingGlass
                     size={20}
                     weight="bold"
-                    className="absolute left-4 z-30 text-white -ml-4 my-2"
+                    className="absolute left-4 z-30 text-theme-text-primary -ml-4 my-2"
                   />
                   <input
                     type="text"
                     name="tts-provider-search"
                     autoComplete="off"
                     placeholder="Search text to speech providers"
-                    className="-ml-4 my-2 bg-transparent z-20 pl-12 h-[38px] w-full px-4 py-1 text-sm outline-none text-white placeholder:text-white placeholder:font-medium"
+                    className="border-none -ml-4 my-2 bg-transparent z-20 pl-12 h-[38px] w-full px-4 py-1 text-sm outline-none text-theme-text-primary placeholder:text-theme-text-primary placeholder:font-medium"
                     onChange={(e) => setSearchQuery(e.target.value)}
                     ref={searchInputRef}
                     onKeyDown={(e) => {
@@ -151,7 +181,7 @@ export default function TextToSpeechProvider({ settings }) {
                     onClick={handleXButton}
                   />
                 </div>
-                <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4">
+                <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4 max-h-[245px]">
                   {filteredProviders.map((provider) => (
                     <LLMItem
                       key={provider.name}
@@ -168,7 +198,7 @@ export default function TextToSpeechProvider({ settings }) {
             </div>
           ) : (
             <button
-              className="w-full max-w-[640px] h-[64px] bg-dark-input rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-primary-button transition-all duration-300"
+              className="w-full max-w-[640px] h-[64px] bg-theme-settings-input-bg rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-primary-button transition-all duration-300"
               type="button"
               onClick={() => setSearchMenuOpen(true)}
             >

@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import {
-  formatDate,
+  formatDateTimeAsMoment,
   getFileExtension,
   middleTruncate,
 } from "@/utils/directories";
@@ -8,7 +8,6 @@ import { ArrowUUpLeft, Eye, File, PushPin } from "@phosphor-icons/react";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import System from "@/models/system";
-import { Tooltip } from "react-tooltip";
 
 export default function WorkspaceFileRow({
   item,
@@ -19,8 +18,13 @@ export default function WorkspaceFileRow({
   fetchKeys,
   hasChanges,
   movedItems,
+  selected,
+  toggleSelection,
+  disableSelection,
+  setSelectedItems,
 }) {
-  const onRemoveClick = async () => {
+  const onRemoveClick = async (e) => {
+    e.stopPropagation();
     setLoading(true);
 
     try {
@@ -33,27 +37,63 @@ export default function WorkspaceFileRow({
     } catch (error) {
       console.error("Failed to remove document:", error);
     }
-
+    setSelectedItems({});
     setLoadingMessage("");
     setLoading(false);
   };
 
+  function toggleRowSelection(e) {
+    if (disableSelection) return;
+    e.stopPropagation();
+    toggleSelection();
+  }
+
+  function handleRowSelection(e) {
+    e.stopPropagation();
+    toggleSelection();
+  }
+
   const isMovedItem = movedItems?.some((movedItem) => movedItem.id === item.id);
   return (
     <div
-      className={`items-center text-white/80 text-xs grid grid-cols-12 py-2 pl-3.5 pr-8 hover:bg-sky-500/20 cursor-pointer ${
-        isMovedItem ? "bg-green-800/40" : "file-row"
+      className={`text-theme-text-primary text-xs grid grid-cols-12 py-2 pl-3.5 pr-8 h-[34px] items-center file-row ${
+        !disableSelection
+          ? "hover:bg-theme-file-picker-hover cursor-pointer"
+          : ""
+      } ${isMovedItem ? "selected light:text-white" : ""} ${
+        selected ? "selected light:text-white" : ""
       }`}
+      onClick={toggleRowSelection}
     >
       <div
-        data-tooltip-id={`directory-item-${item.url}`}
-        className="col-span-10 w-fit flex gap-x-[4px] items-center relative"
+        className="col-span-10 w-fit flex gap-x-[2px] items-center relative"
+        data-tooltip-id="ws-directory-item"
+        data-tooltip-content={JSON.stringify({
+          title: item.title,
+          date: formatDateTimeAsMoment(item?.published),
+          extension: getFileExtension(item.url),
+        })}
       >
+        <div className="shrink-0 w-3 h-3">
+          {!disableSelection ? (
+            <div
+              className={`shrink-0 w-3 h-3 rounded border-[1px] border-solid border-white ${
+                selected ? "text-white" : "text-theme-text-primary light:invert"
+              } flex justify-center items-center cursor-pointer`}
+              role="checkbox"
+              aria-checked={selected}
+              tabIndex={0}
+              onClick={handleRowSelection}
+            >
+              {selected && <div className="w-2 h-2 bg-white rounded-[2px]" />}
+            </div>
+          ) : null}
+        </div>
         <File
-          className="shrink-0 text-base font-bold w-4 h-4 mr-[3px] ml-3"
+          className="shrink-0 text-base font-bold w-4 h-4 mr-[3px] ml-1"
           weight="fill"
         />
-        <p className="whitespace-nowrap overflow-hidden text-ellipsis">
+        <p className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[400px]">
           {middleTruncate(item.title, 50)}
         </p>
       </div>
@@ -76,24 +116,6 @@ export default function WorkspaceFileRow({
           </div>
         )}
       </div>
-      <Tooltip
-        id={`directory-item-${item.url}`}
-        place="bottom"
-        delayShow={800}
-        className="tooltip invert z-99"
-      >
-        <div className="text-xs ">
-          <p className="text-white">{item.title}</p>
-          <div className="flex mt-1 gap-x-2">
-            <p className="">
-              Date: <b>{formatDate(item?.published)}</b>
-            </p>
-            <p className="">
-              Type: <b>{getFileExtension(item.url).toUpperCase()}</b>
-            </p>
-          </div>
-        </div>
-      </Tooltip>
     </div>
   );
 }
@@ -102,11 +124,11 @@ const PinItemToWorkspace = memo(({ workspace, docPath, item }) => {
   const [pinned, setPinned] = useState(
     item?.pinnedWorkspaces?.includes(workspace.id) || false
   );
-  const [hover, setHover] = useState(false);
   const pinEvent = new CustomEvent("pinned_document");
 
-  const updatePinStatus = async () => {
+  const updatePinStatus = async (e) => {
     try {
+      e.stopPropagation();
       if (!pinned) window.dispatchEvent(pinEvent);
       const success = await Workspace.setPinForDocument(
         workspace.slug,
@@ -139,37 +161,38 @@ const PinItemToWorkspace = memo(({ workspace, docPath, item }) => {
 
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="flex gap-x-2 items-center hover:bg-main-gradient p-[2px] rounded ml-2"
+      onClick={updatePinStatus}
+      className="group flex items-center ml-2 cursor-pointer"
+      data-tooltip-id="pin-document"
+      data-tooltip-content={
+        pinned ? "Un-pin from workspace" : "Pin to workspace"
+      }
     >
-      <PushPin
-        data-tooltip-id={`pin-${item.id}`}
-        data-tooltip-content={
-          pinned ? "Un-Pin from workspace" : "Pin to workspace"
-        }
-        size={16}
-        onClick={updatePinStatus}
-        weight={hover || pinned ? "fill" : "regular"}
-        className="outline-none text-base font-bold flex-shrink-0 cursor-pointer"
-      />
-      <Tooltip
-        id={`pin-${item.id}`}
-        place="bottom"
-        delayShow={300}
-        className="tooltip invert !text-xs"
-      />
+      {pinned ? (
+        <div className="bg-theme-settings-input-active group-hover:bg-red-500/20 rounded-3xl whitespace-nowrap">
+          <p className="text-xs px-2 py-0.5 group-hover:text-red-500">
+            <span className="group-hover:hidden">Pinned</span>
+            <span className="hidden group-hover:inline">Un-pin</span>
+          </p>
+        </div>
+      ) : (
+        <PushPin
+          size={16}
+          weight="regular"
+          className="outline-none text-base font-bold flex-shrink-0"
+        />
+      )}
     </div>
   );
 });
 
 const WatchForChanges = memo(({ workspace, docPath, item }) => {
   const [watched, setWatched] = useState(item?.watched || false);
-  const [hover, setHover] = useState(false);
   const watchEvent = new CustomEvent("watch_document_for_changes");
 
-  const updateWatchStatus = async () => {
+  const updateWatchStatus = async (e) => {
     try {
+      e.stopPropagation();
       if (!watched) window.dispatchEvent(watchEvent);
       const success =
         await System.experimentalFeatures.liveSync.setWatchStatusForDocument(
@@ -211,44 +234,36 @@ const WatchForChanges = memo(({ workspace, docPath, item }) => {
 
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="flex gap-x-2 items-center hover:bg-main-gradient p-[2px] rounded ml-2"
+      className="group flex gap-x-2 items-center hover:bg-theme-file-picker-hover p-[2px] rounded ml-2 cursor-pointer"
+      onClick={updateWatchStatus}
+      data-tooltip-id="watch-changes"
+      data-active={watched}
+      data-tooltip-content={
+        watched ? "Stop watching for changes" : "Watch document for changes"
+      }
     >
       <Eye
-        data-tooltip-id={`watch-changes-${item.id}`}
-        data-tooltip-content={
-          watched ? "Stop watching for changes" : "Watch document for changes"
-        }
         size={16}
-        onClick={updateWatchStatus}
-        weight={hover || watched ? "fill" : "regular"}
-        className="outline-none text-base font-bold flex-shrink-0 cursor-pointer"
+        weight="regular"
+        className="outline-none text-base font-bold flex-shrink-0 group-hover:hidden group-data-[active=true]:hidden"
       />
-      <Tooltip
-        id={`watch-changes-${item.id}`}
-        place="bottom"
-        delayShow={300}
-        className="tooltip invert !text-xs"
+      <Eye
+        size={16}
+        weight="fill"
+        className="outline-none text-base font-bold flex-shrink-0 hidden group-hover:block group-data-[active=true]:block"
       />
     </div>
   );
 });
 
-const RemoveItemFromWorkspace = ({ item, onClick }) => {
+const RemoveItemFromWorkspace = ({ item: _item, onClick }) => {
   return (
     <div>
       <ArrowUUpLeft
-        data-tooltip-id={`remove-${item.id}`}
+        data-tooltip-id="remove-document"
         data-tooltip-content="Remove document from workspace"
         onClick={onClick}
         className="text-base font-bold w-4 h-4 ml-2 flex-shrink-0 cursor-pointer"
-      />
-      <Tooltip
-        id={`remove-${item.id}`}
-        place="bottom"
-        delayShow={300}
-        className="tooltip invert !text-xs"
       />
     </div>
   );

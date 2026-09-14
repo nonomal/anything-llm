@@ -1,19 +1,26 @@
-const { v4 } = require("uuid");
-const { writeResponseChunk } = require("../../helpers/chat/responses");
 const { NativeEmbedder } = require("../../EmbeddingEngines/native");
+const { MODEL_MAP } = require("../modelMap");
+const {
+  LLMPerformanceMonitor,
+} = require("../../helpers/chat/LLMPerformanceMonitor");
+const {
+  handleDefaultStreamResponseV2,
+} = require("../../helpers/chat/responses");
 
 class CohereLLM {
-  constructor(embedder = null) {
-    const { CohereClient } = require("cohere-ai");
+  constructor(embedder = null, modelPreference = null) {
+    const { OpenAI: OpenAIApi } = require("openai");
     if (!process.env.COHERE_API_KEY)
       throw new Error("No Cohere API key was set.");
+    this.className = "CohereLLM";
 
-    const cohere = new CohereClient({
-      token: process.env.COHERE_API_KEY,
+    // Cohere exposes an OpenAI-compatible API which lets us reuse the OpenAI SDK
+    // across the app instead of the cohere-ai package. https://docs.cohere.com/docs/compatibility-api
+    this.openai = new OpenAIApi({
+      baseURL: "https://api.cohere.ai/compatibility/v1",
+      apiKey: process.env.COHERE_API_KEY,
     });
-
-    this.cohere = cohere;
-    this.model = process.env.COHERE_MODEL_PREF;
+    this.model = modelPreference || process.env.COHERE_MODEL_PREF;
     this.limits = {
       history: this.promptWindowLimit() * 0.15,
       system: this.promptWindowLimit() * 0.15,
@@ -21,6 +28,14 @@ class CohereLLM {
     };
 
     this.embedder = embedder ?? new NativeEmbedder();
+    this.defaultTemp = 0.7;
+    this.#log(
+      `Initialized with model ${this.model}. ctx: ${this.promptWindowLimit()}`
+    );
+  }
+
+  #log(text, ...args) {
+    console.log(`\x1b[32m[${this.className}]\x1b[0m ${text}`, ...args);
   }
 
   #appendContext(contextTexts = []) {
@@ -35,58 +50,20 @@ class CohereLLM {
     );
   }
 
-  #convertChatHistoryCohere(chatHistory = []) {
-    let cohereHistory = [];
-    chatHistory.forEach((message) => {
-      switch (message.role) {
-        case "system":
-          cohereHistory.push({ role: "SYSTEM", message: message.content });
-          break;
-        case "user":
-          cohereHistory.push({ role: "USER", message: message.content });
-          break;
-        case "assistant":
-          cohereHistory.push({ role: "CHATBOT", message: message.content });
-          break;
-      }
-    });
-
-    return cohereHistory;
-  }
-
   streamingEnabled() {
     return "streamGetChatCompletion" in this;
   }
 
-  promptWindowLimit() {
-    switch (this.model) {
-      case "command-r":
-        return 128_000;
-      case "command-r-plus":
-        return 128_000;
-      case "command":
-        return 4_096;
-      case "command-light":
-        return 4_096;
-      case "command-nightly":
-        return 8_192;
-      case "command-light-nightly":
-        return 8_192;
-      default:
-        return 4_096;
-    }
+  static promptWindowLimit(modelName) {
+    return MODEL_MAP.get("cohere", modelName) ?? 4_096;
   }
 
-  async isValidChatCompletionModel(model = "") {
-    const validModels = [
-      "command-r",
-      "command-r-plus",
-      "command",
-      "command-light",
-      "command-nightly",
-      "command-light-nightly",
-    ];
-    return validModels.includes(model);
+  promptWindowLimit() {
+    return MODEL_MAP.get("cohere", this.model) ?? 4_096;
+  }
+
+  async isValidChatCompletionModel() {
+    return true;
   }
 
   constructPrompt({
@@ -103,103 +80,102 @@ class CohereLLM {
   }
 
   async getChatCompletion(messages = null, { temperature = 0.7 }) {
-    if (!(await this.isValidChatCompletionModel(this.model)))
-      throw new Error(
-        `Cohere chat: ${this.model} is not valid for chat completion!`
-      );
+    const result = await LLMPerformanceMonitor.measureAsyncFunction(
+      this.openai.chat.completions
+        .create({
+          model: this.model,
+          messages,
+          temperature,
+        })
+        .catch((e) => {
+          throw new Error(e.message);
+        })
+    );
 
-    const message = messages[messages.length - 1].content; // Get the last message
-    const cohereHistory = this.#convertChatHistoryCohere(messages.slice(0, -1)); // Remove the last message and convert to Cohere
+    if (
+      !result.output.hasOwnProperty("choices") ||
+      result.output.choices.length === 0
+    )
+      return null;
 
-    const chat = await this.cohere.chat({
-      model: this.model,
-      message: message,
-      chatHistory: cohereHistory,
-      temperature,
-    });
-
-    if (!chat.hasOwnProperty("text")) return null;
-    return chat.text;
+    const promptTokens = result.output.usage?.prompt_tokens || 0;
+    const completionTokens = result.output.usage?.completion_tokens || 0;
+    return {
+      textResponse: result.output.choices[0].message.content,
+      metrics: {
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: promptTokens + completionTokens,
+        outputTps: completionTokens / result.duration,
+        duration: result.duration,
+        model: this.model,
+        provider: this.className,
+        timestamp: new Date(),
+      },
+    };
   }
 
   async streamGetChatCompletion(messages = null, { temperature = 0.7 }) {
-    if (!(await this.isValidChatCompletionModel(this.model)))
-      throw new Error(
-        `Cohere chat: ${this.model} is not valid for chat completion!`
-      );
-
-    const message = messages[messages.length - 1].content; // Get the last message
-    const cohereHistory = this.#convertChatHistoryCohere(messages.slice(0, -1)); // Remove the last message and convert to Cohere
-
-    const stream = await this.cohere.chatStream({
-      model: this.model,
-      message: message,
-      chatHistory: cohereHistory,
-      temperature,
+    const measuredStreamRequest = await LLMPerformanceMonitor.measureStream({
+      func: this.openai.chat.completions.create({
+        model: this.model,
+        stream: true,
+        stream_options: { include_usage: true },
+        messages,
+        temperature,
+      }),
+      messages,
+      runPromptTokenCalculation: false,
+      modelTag: this.model,
+      provider: this.className,
     });
 
-    return { type: "stream", stream: stream };
+    return measuredStreamRequest;
   }
 
-  async handleStream(response, stream, responseProps) {
-    return new Promise(async (resolve) => {
-      let fullText = "";
-      const { uuid = v4(), sources = [] } = responseProps;
+  handleStream(response, stream, responseProps) {
+    return handleDefaultStreamResponseV2(response, stream, responseProps);
+  }
 
-      const handleAbort = () => {
-        writeResponseChunk(response, {
-          uuid,
-          sources,
-          type: "abort",
-          textResponse: fullText,
-          close: true,
-          error: false,
-        });
-        response.removeListener("close", handleAbort);
-        resolve(fullText);
-      };
-      response.on("close", handleAbort);
-
-      try {
-        for await (const chat of stream.stream) {
-          if (chat.eventType === "text-generation") {
-            const text = chat.text;
-            fullText += text;
-
-            writeResponseChunk(response, {
-              uuid,
-              sources,
-              type: "textResponseChunk",
-              textResponse: text,
-              close: false,
-              error: false,
-            });
-          }
+  /**
+   * Returns the capabilities of the model by querying Cohere's models endpoint.
+   * A model supports tool calling when its `features` array includes `tools` or `tool_choice`.
+   * The OpenAI-compatible route does not expose this, so we hit the native REST API.
+   * @returns {Promise<{tools: boolean, reasoning: boolean, imageGeneration: boolean, vision: boolean}>}
+   */
+  async getModelCapabilities() {
+    try {
+      if (!process.env.COHERE_API_KEY)
+        throw new Error("No Cohere API key was set.");
+      const features = await fetch(
+        `https://api.cohere.com/v1/models/${this.model}`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${process.env.COHERE_API_KEY}` },
         }
+      )
+        .then((res) => {
+          if (!res.ok)
+            throw new Error(`Cohere:getModelCapabilities - ${res.statusText}`);
+          return res.json();
+        })
+        .then((data) => data?.features || []);
 
-        writeResponseChunk(response, {
-          uuid,
-          sources,
-          type: "textResponseChunk",
-          textResponse: "",
-          close: true,
-          error: false,
-        });
-        response.removeListener("close", handleAbort);
-        resolve(fullText);
-      } catch (error) {
-        writeResponseChunk(response, {
-          uuid,
-          sources,
-          type: "abort",
-          textResponse: null,
-          close: true,
-          error: error.message,
-        });
-        response.removeListener("close", handleAbort);
-        resolve(fullText);
-      }
-    });
+      return {
+        tools: features.includes("tools"),
+        reasoning: features.includes("reasoning"),
+        imageGeneration: false,
+        vision: features.includes("vision"),
+      };
+    } catch (error) {
+      console.error("Cohere:getModelCapabilities", error.message);
+      return {
+        tools: false,
+        reasoning: false,
+        imageGeneration: false,
+        vision: false,
+      };
+    }
   }
 
   // Simple wrapper for dynamic embedder & normalize interface for all LLM implementations

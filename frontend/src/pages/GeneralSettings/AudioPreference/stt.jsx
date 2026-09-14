@@ -4,8 +4,19 @@ import showToast from "@/utils/toast";
 import LLMItem from "@/components/LLMSelection/LLMItem";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import CTAButton from "@/components/lib/CTAButton";
+import OpenAiLogo from "@/media/llmprovider/openai.png";
+import DeepgramLogo from "@/media/ttsproviders/deepgram.png";
 import AnythingLLMIcon from "@/media/logo/anything-llm-icon.png";
+import LemonadeLogo from "@/media/llmprovider/lemonade.png";
+import GenericOpenAiLogo from "@/media/llmprovider/generic-openai.png";
+import GroqLogo from "@/media/llmprovider/groq.png";
+
 import BrowserNative from "@/components/SpeechToText/BrowserNative";
+import OpenAiSTTOptions from "@/components/SpeechToText/OpenAiOptions";
+import DeepgramSTTOptions from "@/components/SpeechToText/DeepgramOptions";
+import LemonadeSTTOptions from "@/components/SpeechToText/LemonadeOptions";
+import GenericOpenAiSTTOptions from "@/components/SpeechToText/GenericOpenAiOptions";
+import GroqSTTOptions from "@/components/SpeechToText/GroqOptions";
 
 const PROVIDERS = [
   {
@@ -14,6 +25,42 @@ const PROVIDERS = [
     logo: AnythingLLMIcon,
     options: (settings) => <BrowserNative settings={settings} />,
     description: "Uses your browser's built in STT service if supported.",
+  },
+  {
+    name: "OpenAI",
+    value: "openai",
+    logo: OpenAiLogo,
+    options: (settings) => <OpenAiSTTOptions settings={settings} />,
+    description: "Use OpenAI's Whisper API to transcribe speech to text.",
+  },
+  {
+    name: "Lemonade",
+    value: "lemonade",
+    logo: LemonadeLogo,
+    options: (settings) => <LemonadeSTTOptions settings={settings} />,
+    description: "Transcribe speech via your local Lemonade server.",
+  },
+  {
+    name: "Deepgram",
+    value: "deepgram",
+    logo: DeepgramLogo,
+    options: (settings) => <DeepgramSTTOptions settings={settings} />,
+    description: "Transcribe speech using Deepgram's hosted Nova models.",
+  },
+  {
+    name: "Groq",
+    value: "groq",
+    logo: GroqLogo,
+    options: (settings) => <GroqSTTOptions settings={settings} />,
+    description: "Transcribe speech using Groq's hosted models.",
+  },
+  {
+    name: "Generic OpenAI",
+    value: "generic-openai",
+    logo: GenericOpenAiLogo,
+    options: (settings) => <GenericOpenAiSTTOptions settings={settings} />,
+    description:
+      "Connect to any OpenAI-compatible STT service via a custom configuration.",
   },
 ];
 
@@ -77,7 +124,7 @@ export default function SpeechToTextProvider({ settings }) {
   return (
     <form onSubmit={handleSubmit} className="flex w-full">
       <div className="flex flex-col w-full px-1 md:pl-6 md:pr-[50px] md:py-6 py-16">
-        <div className="w-full flex flex-col gap-y-1 pb-6 border-white border-b-2 border-opacity-10">
+        <div className="w-full flex flex-col gap-y-1 pb-6 border-white light:border-theme-sidebar-border border-b-2 border-opacity-10">
           <div className="flex gap-x-4 items-center">
             <p className="text-lg leading-6 font-bold text-white">
               Speech-to-text Preference
@@ -109,20 +156,20 @@ export default function SpeechToTextProvider({ settings }) {
             />
           )}
           {searchMenuOpen ? (
-            <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] overflow-auto white-scrollbar min-h-[64px] bg-dark-input rounded-lg flex flex-col justify-between cursor-pointer border-2 border-primary-button z-20">
+            <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] min-h-[64px] bg-theme-settings-input-bg rounded-lg flex flex-col justify-between cursor-pointer border-2 border-primary-button z-20">
               <div className="w-full flex flex-col gap-y-1">
-                <div className="flex items-center sticky top-0 border-b border-[#9CA3AF] mx-4 bg-dark-input">
+                <div className="flex items-center sticky top-0 z-10 border-b border-[#9CA3AF] mx-4 bg-theme-settings-input-bg">
                   <MagnifyingGlass
                     size={20}
                     weight="bold"
-                    className="absolute left-4 z-30 text-white -ml-4 my-2"
+                    className="absolute left-4 z-30 text-theme-text-primary -ml-4 my-2"
                   />
                   <input
                     type="text"
                     name="stt-provider-search"
                     autoComplete="off"
                     placeholder="Search speech to text providers"
-                    className="-ml-4 my-2 bg-transparent z-20 pl-12 h-[38px] w-full px-4 py-1 text-sm outline-none text-white placeholder:text-white placeholder:font-medium"
+                    className="border-none -ml-4 my-2 bg-transparent z-20 pl-12 h-[38px] w-full px-4 py-1 text-sm outline-none text-theme-text-primary placeholder:text-theme-text-primary placeholder:font-medium"
                     onChange={(e) => setSearchQuery(e.target.value)}
                     ref={searchInputRef}
                     onKeyDown={(e) => {
@@ -136,7 +183,7 @@ export default function SpeechToTextProvider({ settings }) {
                     onClick={handleXButton}
                   />
                 </div>
-                <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4">
+                <div className="flex-1 pl-4 pr-2 flex flex-col gap-y-1 overflow-y-auto white-scrollbar pb-4 max-h-[245px]">
                   {filteredProviders.map((provider) => (
                     <LLMItem
                       key={provider.name}
@@ -153,7 +200,7 @@ export default function SpeechToTextProvider({ settings }) {
             </div>
           ) : (
             <button
-              className="w-full max-w-[640px] h-[64px] bg-dark-input rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-primary-button transition-all duration-300"
+              className="w-full max-w-[640px] h-[64px] bg-theme-settings-input-bg rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-primary-button transition-all duration-300"
               type="button"
               onClick={() => setSearchMenuOpen(true)}
             >

@@ -1,16 +1,45 @@
 const prisma = require("../utils/prisma");
+const slugifyModule = require("slugify");
 const { v4: uuidv4 } = require("uuid");
+const truncate = require("truncate");
 
 const WorkspaceThread = {
   defaultName: "Thread",
   writable: ["name"],
 
-  new: async function (workspace, userId = null) {
+  /**
+   * The default Slugify module requires some additional mapping to prevent downstream issues
+   * if the user is able to define a slug externally. We have to block non-escapable URL chars
+   * so that is the slug is rendered it doesn't break the URL or UI when visited.
+   * @param  {...any} args - slugify args for npm package.
+   * @returns {string}
+   */
+  slugify: function (...args) {
+    slugifyModule.extend({
+      "+": " plus ",
+      "!": " bang ",
+      "@": " at ",
+      "*": " splat ",
+      ".": " dot ",
+      ":": "",
+      "~": "",
+      "(": "",
+      ")": "",
+      "'": "",
+      '"': "",
+      "|": "",
+    });
+    return slugifyModule(...args);
+  },
+
+  new: async function (workspace, userId = null, data = {}) {
     try {
       const thread = await prisma.workspace_threads.create({
         data: {
-          name: this.defaultName,
-          slug: uuidv4(),
+          name: data.name ? String(data.name) : this.defaultName,
+          slug: data.slug
+            ? this.slugify(data.slug, { lowercase: true })
+            : uuidv4(),
           user_id: userId ? Number(userId) : null,
           workspace_id: workspace.id,
         },
@@ -62,6 +91,17 @@ const WorkspaceThread = {
 
   delete: async function (clause = {}) {
     try {
+      const { WorkspaceChats } = require("./workspaceChats");
+      // thread_id has no FK relation so chats don't cascade-delete with the thread.
+      const threads = await prisma.workspace_threads.findMany({
+        where: clause,
+        select: { id: true },
+      });
+      if (threads.length > 0)
+        await WorkspaceChats.delete({
+          thread_id: { in: threads.map((thread) => thread.id) },
+        });
+
       await prisma.workspace_threads.deleteMany({
         where: clause,
       });
@@ -72,12 +112,18 @@ const WorkspaceThread = {
     }
   },
 
-  where: async function (clause = {}, limit = null, orderBy = null) {
+  where: async function (
+    clause = {},
+    limit = null,
+    orderBy = null,
+    include = null
+  ) {
     try {
       const results = await prisma.workspace_threads.findMany({
         where: clause,
         ...(limit !== null ? { take: limit } : {}),
         ...(orderBy !== null ? { orderBy } : {}),
+        ...(include !== null ? { include } : {}),
       });
       return results;
     } catch (error) {
@@ -86,15 +132,28 @@ const WorkspaceThread = {
     }
   },
 
-  // Will fire on first message (included or not) for a thread and rename the thread with the newName prop.
+  migrateToMultiUser: async function (adminUserId) {
+    try {
+      await prisma.workspace_threads.updateMany({
+        where: { user_id: null },
+        data: { user_id: adminUserId },
+      });
+      return true;
+    } catch (error) {
+      console.error(error.message);
+      return false;
+    }
+  },
+
+  // Will fire on first message (included or not) for a thread and rename the thread based on the prompt.
   autoRenameThread: async function ({
     workspace = null,
     thread = null,
     user = null,
-    newName = null,
+    prompt = null,
     onRename = null,
   }) {
-    if (!workspace || !thread || !newName) return false;
+    if (!workspace || !thread || !prompt) return false;
     if (thread.name !== this.defaultName) return false; // don't rename if already named.
 
     const { WorkspaceChats } = require("./workspaceChats");
@@ -105,7 +164,7 @@ const WorkspaceThread = {
     });
     if (chatCount !== 1) return { renamed: false, thread };
     const { thread: updatedThread } = await this.update(thread, {
-      name: newName,
+      name: truncate(prompt, 22),
     });
 
     onRename?.(updatedThread);

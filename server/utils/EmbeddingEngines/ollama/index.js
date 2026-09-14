@@ -1,4 +1,9 @@
-const { maximumChunkLength } = require("../../helpers");
+const {
+  maximumChunkLength,
+  reportEmbeddingProgress,
+} = require("../../helpers");
+const { Ollama } = require("ollama");
+const { OllamaAILLM } = require("../../AiProviders/ollama");
 
 class OllamaEmbedder {
   constructor() {
@@ -7,21 +12,42 @@ class OllamaEmbedder {
     if (!process.env.EMBEDDING_MODEL_PREF)
       throw new Error("No embedding model was set.");
 
-    this.basePath = `${process.env.EMBEDDING_BASE_PATH}/api/embeddings`;
+    this.className = "OllamaEmbedder";
+    this.basePath = process.env.EMBEDDING_BASE_PATH;
     this.model = process.env.EMBEDDING_MODEL_PREF;
-    // Limit of how many strings we can process in a single pass to stay with resource or network limits
-    this.maxConcurrentChunks = 1;
+    this.maxConcurrentChunks = process.env.OLLAMA_EMBEDDING_BATCH_SIZE
+      ? Number(process.env.OLLAMA_EMBEDDING_BATCH_SIZE)
+      : 1;
     this.embeddingMaxChunkLength = maximumChunkLength();
+    this.authToken = process.env.OLLAMA_AUTH_TOKEN;
+
+    const headers = this.authToken
+      ? { Authorization: `Bearer ${this.authToken}` }
+      : {};
+    this.client = new Ollama({
+      host: this.basePath,
+      headers,
+      fetch: OllamaAILLM.applyOllamaFetch(),
+    });
+    this.log(
+      `initialized with model ${this.model} at ${this.basePath}. Batch size: ${this.maxConcurrentChunks}, num_ctx: ${this.embeddingMaxChunkLength}`
+    );
   }
 
   log(text, ...args) {
-    console.log(`\x1b[36m[${this.constructor.name}]\x1b[0m ${text}`, ...args);
+    console.log(`\x1b[36m[${this.className}]\x1b[0m ${text}`, ...args);
   }
 
+  /**
+   * Checks if the Ollama service is alive by pinging the base path.
+   * @returns {Promise<boolean>} - A promise that resolves to true if the service is alive, false otherwise.
+   */
   async #isAlive() {
-    return await fetch(process.env.EMBEDDING_BASE_PATH, {
-      method: "HEAD",
-    })
+    const headers = this.authToken
+      ? { Authorization: `Bearer ${this.authToken}` }
+      : {};
+
+    return await fetch(this.basePath, { headers })
       .then((res) => res.ok)
       .catch((e) => {
         this.log(e.message);
@@ -36,67 +62,73 @@ class OllamaEmbedder {
     return result?.[0] || [];
   }
 
+  /**
+   * This function takes an array of text chunks and embeds them using the Ollama API.
+   * Chunks are processed in batches based on the maxConcurrentChunks setting to balance
+   * resource usage on the Ollama endpoint.
+   *
+   * We will use the num_ctx option to set the maximum context window to the max chunk length defined by the user in the settings
+   * so that the maximum context window is used and content is not truncated.
+   *
+   * We also assume the default keep alive option. This could cause issues with models being unloaded and reloaded
+   * on low memory machines, but that is simply a user-end issue we cannot control. If the LLM and embedder are
+   * constantly being loaded and unloaded, the user should use another LLM or Embedder to avoid this issue.
+   * @param {string[]} textChunks - An array of text chunks to embed.
+   * @returns {Promise<Array<number[]>>} - A promise that resolves to an array of embeddings.
+   */
   async embedChunks(textChunks = []) {
     if (!(await this.#isAlive()))
       throw new Error(
         `Ollama service could not be reached. Is Ollama running?`
       );
-
-    const embeddingRequests = [];
     this.log(
-      `Embedding ${textChunks.length} chunks of text with ${this.model}.`
+      `Embedding ${textChunks.length} chunks of text with ${this.model} in batches of ${this.maxConcurrentChunks}.`
     );
 
-    for (const chunk of textChunks) {
-      embeddingRequests.push(
-        new Promise((resolve) => {
-          fetch(this.basePath, {
-            method: "POST",
-            body: JSON.stringify({
-              model: this.model,
-              prompt: chunk,
-            }),
-          })
-            .then((res) => res.json())
-            .then(({ embedding }) => {
-              resolve({ data: embedding, error: null });
-              return;
-            })
-            .catch((error) => {
-              resolve({ data: [], error: error.message });
-              return;
-            });
-        })
-      );
-    }
+    let data = [];
+    let error = null;
 
-    const { data = [], error = null } = await Promise.all(
-      embeddingRequests
-    ).then((results) => {
-      // If any errors were returned from Ollama abort the entire sequence because the embeddings
-      // will be incomplete.
+    // Process chunks in batches based on maxConcurrentChunks
+    const totalBatches = Math.ceil(
+      textChunks.length / this.maxConcurrentChunks
+    );
+    let currentBatch = 0;
 
-      const errors = results
-        .filter((res) => !!res.error)
-        .map((res) => res.error)
-        .flat();
-      if (errors.length > 0) {
-        let uniqueErrors = new Set();
-        errors.map((error) =>
-          uniqueErrors.add(`[${error.type}]: ${error.message}`)
+    for (let i = 0; i < textChunks.length; i += this.maxConcurrentChunks) {
+      const batch = textChunks.slice(i, i + this.maxConcurrentChunks);
+      currentBatch++;
+
+      try {
+        // Use input param instead of prompt param to support batch processing
+        const res = await this.client.embed({
+          model: this.model,
+          input: batch,
+          options: {
+            // Always set the num_ctx to the max chunk length defined by the user in the settings
+            // so that the maximum context window is used and content is not truncated.
+            num_ctx: this.embeddingMaxChunkLength,
+          },
+        });
+
+        const { embeddings } = res;
+        if (!Array.isArray(embeddings) || embeddings.length === 0)
+          throw new Error("Ollama returned empty embeddings for batch!");
+
+        // Using prompt param in embed() would return a single embedding (number[])
+        // but input param returns an array of embeddings (number[][]) for batch processing.
+        // This is why we spread the embeddings array into the data array.
+        data.push(...embeddings);
+        reportEmbeddingProgress(data.length, textChunks.length);
+        this.log(
+          `Batch ${currentBatch}/${totalBatches}: Embedded ${embeddings.length} chunks. Total: ${data.length}/${textChunks.length}`
         );
-
-        return {
-          data: [],
-          error: Array.from(uniqueErrors).join(", "),
-        };
+      } catch (err) {
+        this.log(err.message);
+        error = err.message;
+        data = [];
+        break;
       }
-
-      return {
-        data: results.map((res) => res?.data || []),
-        error: null,
-      };
-    });
+    }
 
     if (!!error) throw new Error(`Ollama Failed to embed: ${error}`);
     return data.length > 0 ? data : null;

@@ -1,82 +1,36 @@
-import { useEffect } from "react";
-import { Microphone } from "@phosphor-icons/react";
-import { Tooltip } from "react-tooltip";
-import _regeneratorRuntime from "regenerator-runtime";
-import SpeechRecognition, {
-  useSpeechRecognition,
-} from "react-speech-recognition";
+import { useEffect, useState } from "react";
+import System from "@/models/system";
+import BrowserNativeSTT from "./BrowserNative";
+import ServerSTT from "./ServerSTT";
 
-let timeout;
-const SILENCE_INTERVAL = 3_200; // wait in seconds of silence before closing.
+/**
+ * Speech-to-text input dispatcher for the chat window. Loads the configured
+ * provider once and renders either the browser-native implementation or the
+ * server-side implementation that uploads audio to a remote STT service.
+ * @param {Object} props - The component props
+ * @param {(textToAppend: string, autoSubmit: boolean) => void} props.sendCommand - The function to send the command
+ * @returns {React.ReactElement|null} The SpeechToText component
+ */
 export default function SpeechToText({ sendCommand }) {
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition,
-    browserSupportsContinuousListening,
-    isMicrophoneAvailable,
-  } = useSpeechRecognition({
-    clearTranscriptOnListen: true,
-  });
-
-  function startSTTSession() {
-    if (!isMicrophoneAvailable) {
-      alert(
-        "AnythingLLM does not have access to microphone. Please enable for this site to use this feature."
-      );
-      return;
-    }
-
-    resetTranscript();
-    SpeechRecognition.startListening({
-      continuous: browserSupportsContinuousListening,
-      language: window?.navigator?.language ?? "en-US",
-    });
-  }
-
-  function endTTSSession() {
-    SpeechRecognition.stopListening();
-    if (transcript.length > 0) {
-      sendCommand(transcript, true);
-    }
-
-    resetTranscript();
-    clearTimeout(timeout);
-  }
+  const [provider, setProvider] = useState(null);
 
   useEffect(() => {
-    if (transcript?.length > 0) {
-      sendCommand(transcript, false);
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        endTTSSession();
-      }, SILENCE_INTERVAL);
-    }
-  }, [transcript]);
+    let cancelled = false;
+    System.keys()
+      .then((settings) => {
+        if (cancelled) return;
+        setProvider(settings?.SpeechToTextProvider || "native");
+      })
+      .catch(() => {
+        if (!cancelled) setProvider("native");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  if (!browserSupportsSpeechRecognition) return null;
-  return (
-    <div
-      id="text-size-btn"
-      data-tooltip-id="tooltip-text-size-btn"
-      data-tooltip-content="Speak your prompt"
-      aria-label="Speak your prompt"
-      onClick={listening ? endTTSSession : startSTTSession}
-      className={`relative flex justify-center items-center opacity-60 hover:opacity-100 cursor-pointer ${
-        !!listening ? "!opacity-100" : ""
-      }`}
-    >
-      <Microphone
-        weight="fill"
-        className="w-6 h-6 pointer-events-none text-white"
-      />
-      <Tooltip
-        id="tooltip-text-size-btn"
-        place="top"
-        delayShow={300}
-        className="tooltip !text-xs z-99"
-      />
-    </div>
-  );
+  if (provider === null) return null;
+  if (provider === "native")
+    return <BrowserNativeSTT sendCommand={sendCommand} />;
+  return <ServerSTT sendCommand={sendCommand} />;
 }

@@ -4,12 +4,9 @@ import { isMobile } from "react-device-detect";
 import showToast from "@/utils/toast";
 import System from "@/models/system";
 import PreLoader from "@/components/Preloader";
-import {
-  EMBEDDING_ENGINE_PRIVACY,
-  LLM_SELECTION_PRIVACY,
-  VECTOR_DB_PRIVACY,
-} from "@/pages/OnboardingFlow/Steps/DataHandling";
 import { useTranslation } from "react-i18next";
+import ProviderPrivacy from "@/components/ProviderPrivacy";
+import Toggle from "@/components/lib/Toggle";
 
 export default function PrivacyAndDataHandling() {
   const [settings, setSettings] = useState({});
@@ -26,20 +23,20 @@ export default function PrivacyAndDataHandling() {
   }, []);
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-sidebar flex">
+    <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
       <Sidebar />
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
-        className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] bg-main-gradient w-full h-full overflow-y-scroll"
+        className="relative md:ml-[2px] md:mr-[16px] md:my-[16px] md:rounded-[16px] light:border light:border-theme-sidebar-border bg-theme-bg-secondary w-full h-full overflow-y-scroll p-4 md:p-0"
       >
         <div className="flex flex-col w-full px-1 md:pl-6 md:pr-[50px] md:py-6 py-16">
-          <div className="w-full flex flex-col gap-y-1 pb-6 border-white border-b-2 border-opacity-10">
+          <div className="w-full flex flex-col gap-y-1 pb-6 border-white/10 border-b-2">
             <div className="items-center flex gap-x-4">
-              <p className="text-lg leading-6 font-bold text-white">
+              <p className="text-lg leading-6 font-bold text-theme-text-primary">
                 {t("privacy.title")}
               </p>
             </div>
-            <p className="text-xs leading-[18px] font-base text-white text-opacity-60">
+            <p className="text-xs leading-[18px] font-base text-theme-text-secondary">
               {t("privacy.description")}
             </p>
           </div>
@@ -50,88 +47,11 @@ export default function PrivacyAndDataHandling() {
               </div>
             </div>
           ) : (
-            <>
-              <ThirdParty settings={settings} />
+            <div className="overflow-x-auto flex flex-col gap-y-6 pt-6">
+              <ProviderPrivacy />
               <TelemetryLogs settings={settings} />
-            </>
+            </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ThirdParty({ settings }) {
-  const llmChoice = settings?.LLMProvider || "openai";
-  const embeddingEngine = settings?.EmbeddingEngine || "openai";
-  const vectorDb = settings?.VectorDB || "lancedb";
-  const { t } = useTranslation();
-
-  return (
-    <div className="py-8 w-full flex items-start justify-center flex-col gap-y-6 border-b-2 border-white/10">
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-y-2 border-b border-zinc-500/50 pb-4">
-          <div className="text-white text-base font-bold">
-            {t("privacy.llm")}
-          </div>
-          <div className="flex items-center gap-2.5">
-            <img
-              src={LLM_SELECTION_PRIVACY[llmChoice].logo}
-              alt="LLM Logo"
-              className="w-8 h-8 rounded"
-            />
-            <p className="text-white text-sm font-bold">
-              {LLM_SELECTION_PRIVACY[llmChoice].name}
-            </p>
-          </div>
-          <ul className="flex flex-col list-disc ml-4">
-            {LLM_SELECTION_PRIVACY[llmChoice].description.map((desc) => (
-              <li className="text-white/90 text-sm">{desc}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="flex flex-col gap-y-2 border-b border-zinc-500/50 pb-4">
-          <div className="text-white text-base font-bold">
-            {t("privacy.embedding")}
-          </div>
-          <div className="flex items-center gap-2.5">
-            <img
-              src={EMBEDDING_ENGINE_PRIVACY[embeddingEngine].logo}
-              alt="LLM Logo"
-              className="w-8 h-8 rounded"
-            />
-            <p className="text-white text-sm font-bold">
-              {EMBEDDING_ENGINE_PRIVACY[embeddingEngine].name}
-            </p>
-          </div>
-          <ul className="flex flex-col list-disc ml-4">
-            {EMBEDDING_ENGINE_PRIVACY[embeddingEngine].description.map(
-              (desc) => (
-                <li className="text-white/90 text-sm">{desc}</li>
-              )
-            )}
-          </ul>
-        </div>
-
-        <div className="flex flex-col gap-y-2 pb-4">
-          <div className="text-white text-base font-bold">
-            {t("privacy.vector")}
-          </div>
-          <div className="flex items-center gap-2.5">
-            <img
-              src={VECTOR_DB_PRIVACY[vectorDb].logo}
-              alt="LLM Logo"
-              className="w-8 h-8 rounded"
-            />
-            <p className="text-white text-sm font-bold">
-              {VECTOR_DB_PRIVACY[vectorDb].name}
-            </p>
-          </div>
-          <ul className="flex flex-col list-disc ml-4">
-            {VECTOR_DB_PRIVACY[vectorDb].description.map((desc) => (
-              <li className="text-white/90 text-sm">{desc}</li>
-            ))}
-          </ul>
         </div>
       </div>
     </div>
@@ -158,27 +78,21 @@ function TelemetryLogs({ settings }) {
   return (
     <div className="relative w-full max-h-full">
       <div className="relative rounded-lg">
-        <div className="flex items-start justify-between px-6 py-4"></div>
         <div className="space-y-6 flex h-full w-full">
           <div className="w-full flex flex-col gap-y-4">
             <div className="">
-              <label className="mb-2.5 block font-medium text-white">
-                {t("privacy.anonymous")}
-              </label>
-              <label className="relative inline-flex cursor-pointer items-center">
-                <input
-                  type="checkbox"
-                  onClick={toggleTelemetry}
-                  checked={telemetry}
-                  className="peer sr-only pointer-events-none"
-                />
-                <div className="pointer-events-none peer h-6 w-11 rounded-full bg-stone-400 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:shadow-xl after:border after:border-gray-600 after:bg-white after:box-shadow-md after:transition-all after:content-[''] peer-checked:bg-lime-300 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800"></div>
-              </label>
+              <Toggle
+                size="lg"
+                className="mb-4"
+                label={t("privacy.anonymous")}
+                enabled={telemetry}
+                onChange={toggleTelemetry}
+              />
             </div>
           </div>
         </div>
         <div className="flex flex-col items-left space-y-2">
-          <p className="text-white/80 text-xs rounded-lg w-96">
+          <p className="text-theme-text-secondary text-xs rounded-lg w-96">
             All events do not record IP-address and contain{" "}
             <b>no identifying</b> content, settings, chats, or other non-usage
             based information. To see the list of event tags collected you can
@@ -187,12 +101,13 @@ function TelemetryLogs({ settings }) {
               href="https://github.com/search?q=repo%3AMintplex-Labs%2Fanything-llm%20.sendTelemetry(&type=code"
               className="underline text-blue-400"
               target="_blank"
+              rel="noreferrer"
             >
-              Github here
+              GitHub here
             </a>
             .
           </p>
-          <p className="text-white/80 text-xs rounded-lg w-96">
+          <p className="text-theme-text-secondary text-xs rounded-lg w-96">
             As an open-source project we respect your right to privacy. We are
             dedicated to building the best solution for integrating AI and
             documents privately and securely. If you do decide to turn off
@@ -202,6 +117,7 @@ function TelemetryLogs({ settings }) {
               href="mailto:team@mintplexlabs.com"
               className="underline text-blue-400"
               target="_blank"
+              rel="noreferrer"
             >
               team@mintplexlabs.com
             </a>
